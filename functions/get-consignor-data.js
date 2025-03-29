@@ -103,7 +103,7 @@ async function getConsignorData(event, context) {
     
     // Step 1: Get login page first
     console.log('Step 1: Fetching login page...');
-    const loginPageUrl = `${BASE_URL}/admin/login`;
+    const loginPageUrl = `${BASE_URL}/login`;
     const loginPageResponse = await axiosInstance.get(loginPageUrl);
     console.log(`Login page status: ${loginPageResponse.status}`);
     
@@ -130,7 +130,7 @@ async function getConsignorData(event, context) {
     // Step 4: Setting request URL
     console.log('Step 4: Setting request URL...');
     const setRequestUrlData = {
-      url: BASE_URL + '/admin/'
+      url: BASE_URL + '/'
     };
     const setRequestUrlResponse = await axiosInstance.post(
       `${BASE_URL}/api/setrequesturl`,
@@ -140,11 +140,11 @@ async function getConsignorData(event, context) {
     
     // Step 5: Perform login
     console.log('Step 5: Attempting login...');
-    const loginUrl = `${BASE_URL}/admin/login/process`;
+    const loginUrl = `${BASE_URL}/api/ajaxlogin`;
     const loginData = {
-      email: username,
+      user_name: username,
       password: password,
-      csrf_token: csrfToken
+      autologin: ''
     };
     
     // Make the login request
@@ -154,30 +154,25 @@ async function getConsignorData(event, context) {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Origin': BASE_URL,
-        'Referer': `${BASE_URL}/admin/login`
+        'Referer': `${BASE_URL}/login/`
       }
     });
     console.log(`Login response status: ${loginResponse.status}`);
+    console.log('Login response data:', JSON.stringify(loginResponse.data));
     
-    // Check if login was successful - look for redirect to dashboard
-    if (loginResponse.status === 302 && loginResponse.headers.location && 
-        loginResponse.headers.location.includes('/admin/dashboard')) {
-      console.log('Login successful! Redirecting to dashboard...');
-    } else if (loginResponse.status === 200 && loginResponse.data.includes('dashboard')) {
-      console.log('Login successful! Dashboard loaded.');
-    } else {
-      // Check the response body for error messages
-      const loginPage$ = cheerio.load(loginResponse.data);
-      const errorMsg = loginPage$('.alert-danger').text().trim() || 'Unknown login error';
-      console.error('Login failed:', errorMsg);
-      throw new Error(`Login failed: ${errorMsg}`);
+    // Check if login was successful
+    const responseData = loginResponse.data;
+    
+    // Check for success in the response data
+    if (responseData.status !== 'success') {
+      throw new Error(`Login failed: ${responseData.msg || 'Unknown error'}`);
     }
     
     console.log('Login successful! Initializing session data...');
     
     // Step 6: Get initial data (required after login)
     console.log('Step 6: Fetching initial data...');
-    axiosInstance.defaults.headers.common['Referer'] = BASE_URL + '/admin/';
+    axiosInstance.defaults.headers.common['Referer'] = BASE_URL + '/';
     const initDataResponse = await axiosInstance.get(`${BASE_URL}/api/initdata`);
     console.log(`Init data status: ${initDataResponse.status}`);
     console.log('Init data:', JSON.stringify(initDataResponse.data));
@@ -202,14 +197,20 @@ async function getConsignorData(event, context) {
     
     // Try multiple potential statement URLs, starting with the most likely ones
     const urlPatterns = [
+      // Standard statement URLs
+      `/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`,
+      `/statements/view/auction/${auctionCode}/sellerid/${consignorId}`,
+      `/statements/printreport/${auctionCode}/${consignorId}`,
+      `/statements/view/${auctionCode}/${consignorId}`,
+      // Reports URLs
+      `/reports/consignor/${auctionCode}/${consignorId}`,
+      `/reports/consignor/auction/${auctionCode}/sellerid/${consignorId}`,
+      // Admin URLs (fallback)
       `/admin/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`,
-      `/admin/statements/printreport/${auctionCode}/${consignorId}`,
       `/admin/statements/view/auction/${auctionCode}/sellerid/${consignorId}`,
+      `/admin/statements/printreport/${auctionCode}/${consignorId}`,
       `/admin/statements/view/${auctionCode}/${consignorId}`,
-      `/admin/reports/consignor/${auctionCode}/${consignorId}`,
-      `/admin/reports/consignor/${auctionCode}`,
-      `/admin/reports/consignor/${consignorId}`,
-      `/admin/reports/consignor`
+      `/admin/reports/consignor/${auctionCode}/${consignorId}`
     ];
     
     let statementResponse = null;
