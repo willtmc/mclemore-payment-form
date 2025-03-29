@@ -257,11 +257,21 @@ async function fetchStatementHtml(auctionCode, sellerId, username, password) {
       {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        },
+        // Optionally, set a reasonable timeout
+        timeout: 15000 // 15 seconds
       }
     );
     
     console.log('Login response status:', loginResponse.status);
+    // --- Added Logging --- 
+    console.log('Login response headers:', JSON.stringify(loginResponse.headers, null, 2)); 
+    // Log first 500 chars of login response data to check for errors
+    console.log('Login response data (start):', loginResponse.data ? loginResponse.data.substring(0, 500) : 'No data'); 
+    // Log cookies from the session after login attempt
+    const cookies = session.defaults.jar ? session.defaults.jar.getCookieStringSync(loginResponse.config.url) : 'Cookie jar not available';
+    console.log('Session cookies after login attempt:', cookies);
+    // --- End Added Logging ---
     
     // Step 2: Fetch the statement
     const statementUrl = `https://www.mclemoreauction.com/admin/statements/printreport/auction/${auctionCode}/sellerid/${sellerId}`;
