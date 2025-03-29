@@ -257,63 +257,46 @@ async function getConsignorData(event, context) {
     // Parse the HTML response with cheerio
     const statement$ = cheerio.load(statementResponse.data);
     
-    // Extract consignor information with more robust selectors
-    // Based on the approach in analyze_page.py
+    // Initialize variables to store extracted data
     let consignorName = '';
     let consignorEmail = '';
     let auctionTitle = '';
     let statementDate = '';
-    let totalDue = '';
+    let totalAmountDue = '';
     
-    // Extract consignor name using multiple approaches
+    // Log the HTML for debugging
+    console.log('Statement HTML length:', statementResponse.data.length);
+    console.log('First 500 chars of statement HTML:', statementResponse.data.substring(0, 500));
+    
+    // Extract consignor name - look for patterns in the statement
     console.log('Extracting consignor name...');
     
-    // Try direct class selectors
-    const nameSelectors = [
-      '.consignor-name', '.seller-name', '.customer-name', '.buyerName', '.name',
-      'h1, h2, h3, h4, h5',
-      'strong:contains("Consignor:")', 'strong:contains("Seller:")',
-      'div:contains("Consignor:")', 'div:contains("Seller:")',
-      'td:contains("Consignor:")', 'td:contains("Seller:")',
-      'p:contains("Consignor:")', 'p:contains("Seller:")',
-      'span:contains("Consignor:")', 'span:contains("Seller:")',
-      'b:contains("Consignor:")', 'b:contains("Seller:")',
-      'tr:contains("Consignor")', 'tr:contains("Seller")',
-      'div.header', 'div.statement-header', 'div.consignor-info', 'div.seller-info'
-    ];
-    
-    for (const selector of nameSelectors) {
-      const element = statement$(selector);
-      if (element.length > 0) {
-        const text = element.text().trim();
-        if (text) {
-          // Extract name from text that might contain labels
-          const nameMatch = text.match(/(?:Consignor|Seller|Number)s?:?\s*([^\n\r]+)/);
-          let extractedName = nameMatch ? nameMatch[1].trim() : text;
+    // Try to find seller information section
+    const sellerInfo = statement$('body').text().match(/Seller Number:\s*\d+\s+([^\n]+)/i);
+    if (sellerInfo && sellerInfo[1]) {
+      consignorName = sellerInfo[1].trim();
+      console.log('Found consignor name from seller info:', consignorName);
+    } else {
+      // Fallback to other selectors
+      const nameSelectors = [
+        '.consignor-name', '.seller-name', '.customer-name', 
+        'h1', 'h2', 'h3', 'strong', 'b'
+      ];
+      
+      for (const selector of nameSelectors) {
+        const elements = statement$(selector);
+        if (elements.length > 0) {
+          elements.each((i, el) => {
+            const text = statement$(el).text().trim();
+            // Check if this looks like a name (not too long, no HTML tags)
+            if (text && text.length > 2 && text.length < 100 && !text.includes('<') && !text.includes('>')) {
+              consignorName = text;
+              console.log(`Found consignor name using selector ${selector}:`, consignorName);
+              return false; // Break the each loop
+            }
+          });
           
-          // Clean up the name - try to extract just the company/person name
-          if (extractedName.includes('McLemore Auction Company')) {
-            // Extract the company name
-            const companyMatch = extractedName.match(/(McLemore Auction Company[^\d]*)/);
-            if (companyMatch) extractedName = companyMatch[1].trim();
-          } else if (extractedName.includes('Number:')) {
-            // Extract name from format "Number: XX Name"
-            const numberNameMatch = extractedName.match(/Number:\s*\d+\s*(.+?)(?:House Bidder|Phone|\d{3}-\d{3}-\d{4}|$)/);
-            if (numberNameMatch) extractedName = numberNameMatch[1].trim();
-          }
-          
-          // Remove phone numbers and addresses
-          extractedName = extractedName
-            .replace(/\(\d{3}\)\s*\d{3}-\d{4}/, '')
-            .replace(/\d{3}-\d{3}-\d{4}/, '')
-            .replace(/\d+\s+[A-Za-z\s]+(?:Ave|St|Rd|Blvd|Drive|Dr|Lane|Ln|Court|Ct|Circle|Cir|Highway|Hwy|Parkway|Pkwy)\b[^,]*,[^,]*,[^,]*/, '')
-            .replace(/House Bidder/i, '')
-            .replace(/\s{2,}/g, ' ')
-            .trim();
-            
-          consignorName = extractedName;
-          console.log(`Found consignor name using selector ${selector}: ${consignorName}`);
-          break;
+          if (consignorName) break; // Break the selector loop if name found
         }
       }
     }
@@ -321,40 +304,45 @@ async function getConsignorData(event, context) {
     // Extract consignor email
     console.log('Extracting consignor email...');
     
-    // Try direct class selectors and email patterns
-    const emailSelectors = [
-      '.consignor-email', '.seller-email', '.customer-email', '.buyerEmail', '.email',
-      'a[href^="mailto:"]',
-      'span:contains("@")', 'div:contains("@")', 'td:contains("@")', 'p:contains("@")',
-      'div.contact-info', 'div.email'
-    ];
-    
-    // First try to extract email from the HTML
-    for (const selector of emailSelectors) {
-      const elements = statement$(selector);
-      if (elements.length > 0) {
-        elements.each((i, el) => {
-          const element = statement$(el);
-          let text;
+    // Look for email in the statement text
+    const emailMatch = statement$('body').text().match(/Email:\s*([\w.-]+@[\w.-]+\.[a-zA-Z]{2,})/i);
+    if (emailMatch && emailMatch[1]) {
+      consignorEmail = emailMatch[1].trim();
+      console.log('Found consignor email from statement text:', consignorEmail);
+    } else {
+      // Try direct class selectors and email patterns
+      const emailSelectors = [
+        '.consignor-email', '.seller-email', '.customer-email', '.buyerEmail', '.email',
+        'a[href^="mailto:"]',
+        'span:contains("@")', 'div:contains("@")', 'td:contains("@")', 'p:contains("@")'
+      ];
+      
+      for (const selector of emailSelectors) {
+        const elements = statement$(selector);
+        if (elements.length > 0) {
+          elements.each((i, el) => {
+            const element = statement$(el);
+            let text;
+            
+            // Special handling for mailto links
+            if (selector === 'a[href^="mailto:"]') {
+              const href = element.attr('href');
+              text = href ? href.replace('mailto:', '') : element.text().trim();
+            } else {
+              text = element.text().trim();
+            }
+            
+            // Extract email using regex
+            const emailMatch = text.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/);
+            if (emailMatch) {
+              consignorEmail = emailMatch[0];
+              console.log(`Found consignor email using selector ${selector}: ${consignorEmail}`);
+              return false; // Break the each loop
+            }
+          });
           
-          // Special handling for mailto links
-          if (selector === 'a[href^="mailto:"]') {
-            const href = element.attr('href');
-            text = href ? href.replace('mailto:', '') : element.text().trim();
-          } else {
-            text = element.text().trim();
-          }
-          
-          // Extract email using regex
-          const emailMatch = text.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/);
-          if (emailMatch) {
-            consignorEmail = emailMatch[0];
-            console.log(`Found consignor email using selector ${selector}: ${consignorEmail}`);
-            return false; // Break the each loop
-          }
-        });
-        
-        if (consignorEmail) break; // Break the selector loop if email found
+          if (consignorEmail) break; // Break the selector loop if email found
+        }
       }
     }
     
@@ -494,8 +482,8 @@ async function getConsignorData(event, context) {
           
           // If we have a number, use it
           if (/^\d[\d,.]*$/.test(extractedAmount)) {
-            totalDue = extractedAmount;
-            console.log(`Found total due using selector ${selector}: ${totalDue}`);
+            totalAmountDue = extractedAmount;
+            console.log(`Found total due using selector ${selector}: ${totalAmountDue}`);
             break;
           }
         }
@@ -504,7 +492,7 @@ async function getConsignorData(event, context) {
     
     // If we still couldn't extract the data properly, try a more aggressive approach
     // by parsing the raw HTML for specific patterns
-    if (!consignorName || !consignorEmail || !auctionTitle || !statementDate || !totalDue) {
+    if (!consignorName || !consignorEmail || !auctionTitle || !statementDate || !totalAmountDue) {
       console.log('Using aggressive HTML parsing approach');
       const htmlString = statementResponse.data;
       
@@ -549,20 +537,20 @@ async function getConsignorData(event, context) {
       }
       
       // Look for total due in the raw HTML
-      if (!totalDue) {
+      if (!totalAmountDue) {
         // Try to find a dollar amount near "Total Due" or similar phrases
         const dueRegex = /(?:Total|Due|Balance|Amount)[\s:]+\$?(\d[\d,.]+)/i;
         const dueMatch = htmlString.match(dueRegex);
         if (dueMatch && dueMatch[1]) {
-          totalDue = dueMatch[1].trim();
-          console.log('Found total due in raw HTML:', totalDue);
+          totalAmountDue = dueMatch[1].trim();
+          console.log('Found total due in raw HTML:', totalAmountDue);
         } else {
           // Try to find any dollar amount in a table cell
           const dollarRegex = /<td[^>]*>\s*\$?(\d[\d,.]+)\s*<\/td>/i;
           const dollarMatch = htmlString.match(dollarRegex);
           if (dollarMatch && dollarMatch[1]) {
-            totalDue = dollarMatch[1].trim();
-            console.log('Found dollar amount in table cell:', totalDue);
+            totalAmountDue = dollarMatch[1].trim();
+            console.log('Found dollar amount in table cell:', totalAmountDue);
           }
         }
       }
@@ -613,7 +601,7 @@ async function getConsignorData(event, context) {
       email: consignorEmail || '',
       auctionTitle: auctionTitle || `Auction #${auctionCode}`,
       statementDate: statementDate || new Date().toLocaleDateString(),
-      totalDue: totalDue || '0.00'
+      totalDue: totalAmountDue || '0.00'
     };
     
     console.log('Successfully extracted consignor data:', JSON.stringify(consignorData));
