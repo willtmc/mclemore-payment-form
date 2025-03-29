@@ -38,22 +38,30 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // In a production environment, configure with your actual email service
-    // For now, we'll just simulate sending an email
-    const emailSent = simulateSendEmail(consignorName, consignorEmail, paymentFormUrl, auctionTitle);
-
-    if (emailSent) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({ 
-          message: 'Payment link sent successfully',
-          recipient: consignorEmail 
-        })
-      };
-    } else {
+    // Send the email using nodemailer
+    try {
+      const emailSent = await sendEmail(consignorName, consignorEmail, paymentFormUrl, auctionTitle);
+      
+      if (emailSent) {
+        return {
+          statusCode: 200,
+          body: JSON.stringify({ 
+            message: 'Payment link sent successfully',
+            recipient: consignorEmail 
+          })
+        };
+      } else {
+        console.error('Email sending failed');
+        return {
+          statusCode: 500,
+          body: JSON.stringify({ message: 'Failed to send email' })
+        };
+      }
+    } catch (emailError) {
+      console.error('Email error:', emailError);
       return {
         statusCode: 500,
-        body: JSON.stringify({ message: 'Failed to send email' })
+        body: JSON.stringify({ message: 'Failed to send email', error: emailError.toString() })
       };
     }
   } catch (error) {
@@ -64,26 +72,50 @@ exports.handler = async (event, context) => {
   }
 };
 
-// This function simulates sending an email
-// In production, replace with actual email sending logic
-function simulateSendEmail(consignorName, consignorEmail, paymentFormUrl, auctionTitle) {
-  console.log(`Simulating email send to ${consignorEmail}`);
-  console.log(`Subject: McLemore Auction Payment Form`);
-  console.log(`Body: Dear ${consignorName}, Please use this secure link to submit your payment information for your auction proceeds from ${auctionTitle}: ${paymentFormUrl}`);
+// This function sends an email using nodemailer
+async function sendEmail(consignorName, consignorEmail, paymentFormUrl, auctionTitle) {
+  console.log(`Sending email to ${consignorEmail}`);
   
-  // In production, this would use nodemailer or another email service
-  // Example nodemailer implementation (commented out):
-  /*
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    }
+  // Log the parameters for debugging
+  console.log('Email parameters:', {
+    consignorName,
+    consignorEmail,
+    paymentFormUrl,
+    auctionTitle
   });
+  
+  // Create a test account if we don't have real credentials
+  // In production, use environment variables for credentials
+  let testAccount;
+  let transporter;
+  
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.log('Using Ethereal test account for email');
+    testAccount = await nodemailer.createTestAccount();
+    
+    transporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass
+      }
+    });
+  } else {
+    console.log('Using configured email account');
+    // Use the configured email service
+    transporter = nodemailer.createTransport({
+      service: process.env.EMAIL_SERVICE || 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+      }
+    });
+  }
 
   const mailOptions = {
-    from: 'mclemore@example.com',
+    from: process.env.EMAIL_FROM || 'McLemore Auction <noreply@mclemoreauction.com>',
     to: consignorEmail,
     subject: 'McLemore Auction Payment Form',
     html: `
@@ -102,19 +134,18 @@ function simulateSendEmail(consignorName, consignorEmail, paymentFormUrl, auctio
     `
   };
 
-  return new Promise((resolve, reject) => {
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        console.error('Error sending email:', error);
-        resolve(false);
-      } else {
-        console.log('Email sent:', info.response);
-        resolve(true);
-      }
-    });
-  });
-  */
-  
-  // For now, just return true to simulate successful sending
-  return true;
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log('Email sent:', info.messageId);
+    
+    // If using Ethereal, provide the test URL
+    if (testAccount) {
+      console.log('Preview URL:', nodemailer.getTestMessageUrl(info));
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error sending email:', error);
+    return false;
+  }
 }
