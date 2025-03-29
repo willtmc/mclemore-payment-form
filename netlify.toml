@@ -11,3 +11,11 @@
 # Handle form submissions
 [build.processing.html]
   pretty_urls = true
+
+# Command for local development
+[dev]
+  command = "netlify dev"
+  port = 8888
+  targetPort = 8888
+  publish = "/"
+  framework = "#custom"
