@@ -2,26 +2,57 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs'); // For debugging file writes
+const path = require('path');
 
-exports.handler = async function(event, context) {
-  console.log('Starting get-consignor-data function...');
-  
-  // CORS headers for browser compatibility
+// Base URL for the McLemore Auction admin system
+const BASE_URL = 'https://www.mclemoreauction.com';
+
+// Configure axios defaults
+const axiosInstance = axios.create({
+  baseURL: BASE_URL,
+  withCredentials: true,
+  maxRedirects: 5,
+  timeout: 30000, // Increase timeout for production environment
+  headers: {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+  }
+});
+
+// Helper function to save debug HTML in development only
+const saveDebugHTML = (filename, content) => {
+  // Only save debug files in development environment
+  if (process.env.NODE_ENV !== 'production') {
+    try {
+      const tempDir = process.env.NETLIFY ? '/tmp' : '/tmp';
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      const filePath = path.join(tempDir, filename);
+      fs.writeFileSync(filePath, content);
+      console.log(`Saved ${filename} HTML to ${filePath}`);
+    } catch (error) {
+      console.error(`Error saving debug HTML: ${error.message}`);
+    }
+  }
+};
+
+/**
+ * Netlify function to fetch consignor data from McLemore Auction
+ * This function authenticates with the McLemore Auction admin system and retrieves
+ * consignor statement data for a specific auction and consignor ID.
+ */
+async function getConsignorData(event, context) {
+  // Set CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS'
   };
-  
-  // Handle preflight OPTIONS request
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers,
-      body: ''
-    };
-  }
-  
+
+  console.log('Starting get-consignor-data function...');
+
   try {
     // Parse request body
     const data = JSON.parse(event.body);
@@ -35,27 +66,11 @@ exports.handler = async function(event, context) {
     console.log(`Attempting to fetch data for auction ${auctionCode}, consignor ${consignorId}`);
     console.log(`Debug info - Username: ${username}, Password: [REDACTED]`);
     
-    // Create a session with axios that properly handles cookies
-    const session = axios.create({
-      baseURL: 'https://www.mclemoreauction.com',
-      withCredentials: true,
-      maxRedirects: 5,
-      timeout: 30000, // 30 seconds timeout
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Connection': 'keep-alive',
-        'Upgrade-Insecure-Requests': '1'
-      }
-    });
-    
     // Create a cookie jar to store cookies between requests
     const cookieJar = {};
     
     // Intercept responses to capture cookies
-    session.interceptors.response.use(response => {
+    axiosInstance.interceptors.response.use(response => {
       const cookies = response.headers['set-cookie'];
       if (cookies) {
         cookies.forEach(cookie => {
@@ -69,430 +84,560 @@ exports.handler = async function(event, context) {
           .map(([name, value]) => `${name}=${value}`)
           .join('; ');
         
-        session.defaults.headers.common['Cookie'] = cookieString;
+        axiosInstance.defaults.headers.common['Cookie'] = cookieString;
         console.log('Updated cookies:', cookieString);
       }
       return response;
     });
     
-    try {
-      console.log('Step 1: Fetching login page directly...');
-      const loginPageResponse = await session.get('/login', {
-        headers: {
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Content-Type': 'text/html'
-        }
-      });
-      console.log(`Login page status: ${loginPageResponse.status}`);
-      
-      // Save login page HTML for debugging
-      try { 
-        fs.writeFileSync('/tmp/login-page.html', loginPageResponse.data); 
-        console.log('Saved login page HTML to /tmp/login-page.html');
-      } catch (e) { 
-        console.log('Could not save login page HTML:', e.message); 
-      }
-      
-      // Parse the login page to find the form
-      const $ = cheerio.load(loginPageResponse.data);
-      
-      // Find all forms on the page
-      const forms = $('form');
-      console.log(`Found ${forms.length} forms on the page`);
-      
-      // Log form details for debugging
-      forms.each((i, form) => {
-        console.log(`Form ${i} action: ${$(form).attr('action')}, method: ${$(form).attr('method')}`);
-        
-        // Log input fields
-        $(form).find('input').each((j, input) => {
-          console.log(`  Input ${j}: name=${$(input).attr('name')}, type=${$(input).attr('type')}, id=${$(input).attr('id')}`);
+    // Follow the exact same login steps as in invoice_scraper.py
+    
+    // Step 1: Get login page first
+    console.log('Step 1: Fetching login page...');
+    const loginPageUrl = `${BASE_URL}/login`;
+    const loginPageResponse = await axiosInstance.get(loginPageUrl);
+    console.log(`Login page status: ${loginPageResponse.status}`);
+    
+    // Save login page HTML for debugging
+    saveDebugHTML('login-page.html', loginPageResponse.data);
+    
+    // Step 2: Check cookies
+    console.log('Step 2: Checking cookies...');
+    const cookiesResponse = await axiosInstance.get(`${BASE_URL}/api/cookies`);
+    console.log(`Cookies check status: ${cookiesResponse.status}`);
+    console.log('Cookies:', JSON.stringify(cookiesResponse.data));
+    
+    // Step 3: Get session
+    console.log('Step 3: Getting session...');
+    const sessionUrl = `${BASE_URL}/api/getsession`;
+    const sessionResponse = await axiosInstance.get(sessionUrl);
+    console.log(`Session response status: ${sessionResponse.status}`);
+    console.log('Session data:', JSON.stringify(sessionResponse.data));
+    
+    // Step 4: Set request URL
+    console.log('Step 4: Setting request URL...');
+    const setRequestUrlData = {
+      url: BASE_URL + '/'
+    };
+    const setRequestUrlResponse = await axiosInstance.post(
+      `${BASE_URL}/api/setrequesturl`,
+      setRequestUrlData
+    );
+    console.log(`Set request URL status: ${setRequestUrlResponse.status}`);
+    
+    // Step 5: Perform login
+    console.log('Step 5: Attempting login...');
+    const loginUrl = `${BASE_URL}/api/ajaxlogin`;
+    const loginData = {
+      user_name: username,
+      password: password,
+      autologin: ''
+    };
+    
+    // Make the login request with allow_redirects=False like in Python
+    const loginResponse = await axiosInstance.post(loginUrl, loginData, {
+      maxRedirects: 0,
+      validateStatus: status => status >= 200 && status < 400
+    });
+    console.log(`Login response status: ${loginResponse.status}`);
+    console.log('Login response data:', JSON.stringify(loginResponse.data));
+    
+    // Check if login was successful
+    const responseData = loginResponse.data;
+    
+    // Check for success in either the response status or cookies like in Python
+    if (responseData.status !== 'success' && !loginResponse.headers['set-cookie']?.some(c => c.includes('sessiontoken'))) {
+      throw new Error(`Login failed: ${responseData.msg || 'Unknown error'}`);
+    }
+    
+    console.log('Login successful! Initializing session data...');
+    
+    // Step 6: Get initial data (required after login)
+    console.log('Step 6: Fetching initial data...');
+    axiosInstance.defaults.headers.common['Referer'] = BASE_URL + '/';
+    const initDataResponse = await axiosInstance.get(`${BASE_URL}/api/initdata`);
+    console.log(`Init data status: ${initDataResponse.status}`);
+    console.log('Init data:', JSON.stringify(initDataResponse.data));
+    
+    // Step 7: Get auctions data (required after login)
+    console.log('Step 7: Fetching auctions data...');
+    const auctionsData = {
+      past_sales: 'false',
+      meta_also: 'true'
+    };
+    const auctionsResponse = await axiosInstance.post(
+      `${BASE_URL}/api/auctions`,
+      auctionsData
+    );
+    console.log(`Auctions data status: ${auctionsResponse.status}`);
+    console.log('Auctions data:', JSON.stringify(auctionsResponse.data));
+    
+    console.log('Session fully initialized!');
+    
+    // Now try to fetch the consignor statement
+    console.log('Attempting to fetch consignor statement...');
+    
+    // Try multiple potential statement URLs, starting with the most likely ones
+    const urlPatterns = [
+      `/admin/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`,
+      `/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`,
+      `/admin/statements/view/auction/${auctionCode}/sellerid/${consignorId}`,
+      `/statements/view/auction/${auctionCode}/sellerid/${consignorId}`,
+      `/admin/statements/printreport/${auctionCode}/${consignorId}`,
+      `/statements/printreport/${auctionCode}/${consignorId}`,
+      `/admin/statements/view/${auctionCode}/${consignorId}`,
+      `/statements/view/${auctionCode}/${consignorId}`
+    ];
+    
+    let statementResponse = null;
+    let successUrl = null;
+    
+    for (const urlPattern of urlPatterns) {
+      try {
+        console.log(`Trying URL pattern: ${urlPattern}`);
+        const response = await axiosInstance.get(BASE_URL + urlPattern, { 
+          maxRedirects: 5,
+          headers: {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Referer': `${BASE_URL}/admin/dashboard`
+          }
         });
-      });
-      
-      // Try to find the login form
-      let loginForm = forms.filter((i, el) => {
-        const action = $(el).attr('action') || '';
-        return action.includes('login') || action === '';
-      }).first();
-      
-      // If no form with login in the action, look for forms with password fields
-      if (loginForm.length === 0) {
-        loginForm = forms.filter((i, el) => {
-          return $(el).find('input[type="password"]').length > 0;
-        }).first();
-      }
-      
-      if (loginForm.length === 0) {
-        console.error('Could not find login form on page');
-        throw new Error('Login form not found');
-      }
-      
-      // Extract form action and method
-      const formAction = loginForm.attr('action') || '/login';
-      const formMethod = loginForm.attr('method') || 'post';
-      console.log(`Using form action: ${formAction}, method: ${formMethod}`);
-      
-      // Extract form fields
-      const formFields = {};
-      loginForm.find('input').each((i, el) => {
-        const name = $(el).attr('name');
-        const value = $(el).attr('value') || '';
-        if (name) formFields[name] = value;
-      });
-      console.log('Form fields:', JSON.stringify(formFields));
-      
-      // Prepare form data
-      const formData = new URLSearchParams();
-      Object.keys(formFields).forEach(key => {
-        formData.append(key, formFields[key]);
-      });
-      
-      // Add username and password
-      const usernameField = loginForm.find('input[type="text"], input[type="email"], input[name="username"]').attr('name') || 'username';
-      const passwordField = loginForm.find('input[type="password"]').attr('name') || 'password';
-      formData.append(usernameField, username);
-      formData.append(passwordField, password);
-      
-      console.log(`Using username field: ${usernameField}, password field: ${passwordField}`);
-      console.log('Form data:', formData.toString());
-      
-      // Submit the form
-      console.log(`Submitting login form to ${formAction}...`);
-      const loginFormResponse = await session.post(formAction, formData, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Referer': 'https://www.mclemoreauction.com/login'
-        },
-        maxRedirects: 5,
-        validateStatus: status => status < 400 // Accept any successful status
-      });
-      
-      console.log(`Form login response status: ${loginFormResponse.status}`);
-      
-      // Save the response HTML for debugging
-      try { 
-        fs.writeFileSync('/tmp/login-response.html', loginFormResponse.data); 
-        console.log('Saved login response HTML to /tmp/login-response.html');
-      } catch (e) { 
-        console.log('Could not save login response HTML:', e.message); 
-      }
-      
-      // Check if we were redirected to a dashboard or admin page
-      const responseUrl = loginFormResponse.request?.res?.responseUrl || '';
-      console.log(`Redirected to: ${responseUrl}`);
-      
-      // Check if login was successful by looking for login form or error messages in the response
-      const $response = cheerio.load(loginFormResponse.data);
-      const loginFormAfter = $response('form').filter((i, el) => {
-        const action = $response(el).attr('action') || '';
-        return action.includes('login') || action === '';
-      });
-      
-      const errorMessages = $response('.error, .alert, .alert-danger').text();
-      
-      if (loginFormAfter.length > 0 || errorMessages.includes('Invalid')) {
-        console.error('Login failed - still on login page or error message found');
-        console.error('Error messages found:', errorMessages);
-        throw new Error(`Login failed: ${errorMessages || 'Unknown error'}`);
-      }
-      
-      console.log('Login appears successful!');
-      
-      // Now try to fetch the consignor data
-      console.log('Attempting to fetch consignor data...');
-      
-      // Try different URL patterns for the statement
-      const urlPatterns = [
-        `/admin/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`,
-        `/admin/statements/printreport/${auctionCode}/${consignorId}`,
-        `/admin/statements/view/auction/${auctionCode}/sellerid/${consignorId}`,
-        `/admin/statements/view/${auctionCode}/${consignorId}`,
-        `/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`,
-        `/statements/view/auction/${auctionCode}/sellerid/${consignorId}`,
-        `/statements/printreport/${auctionCode}/${consignorId}`,
-        `/statements/view/${auctionCode}/${consignorId}`
-      ];
-      
-      let statementData = null;
-      let statementHtml = '';
-      
-      for (const urlPattern of urlPatterns) {
-        try {
-          console.log(`Trying URL pattern: ${urlPattern}`);
-          const statementResponse = await session.get(urlPattern, {
-            headers: {
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-              'Referer': 'https://www.mclemoreauction.com/admin/dashboard'
-            }
-          });
-          
-          console.log(`Statement response status: ${statementResponse.status}`);
-          statementHtml = statementResponse.data;
-          
-          // Save statement HTML for debugging
-          try { 
-            fs.writeFileSync('/tmp/statement-page.html', statementHtml); 
-            console.log(`Saved statement HTML from ${urlPattern} to /tmp/statement-page.html`);
-          } catch (e) { 
-            console.log('Could not save statement HTML:', e.message); 
-          }
-          
-          // Check if we got a valid statement page
-          if (statementHtml.includes('Statement') || statementHtml.includes('Consignor') || statementHtml.includes('Total Due')) {
-            console.log(`Found valid statement data at ${urlPattern}`);
-            statementData = statementHtml;
+        
+        if (response.status === 200) {
+          // Check if the response contains statement-related content
+          const html = response.data;
+          if (html.includes('Statement') || html.includes('Consignor') || 
+              html.includes('Seller') || html.includes('Total Due')) {
+            console.log(`Success with URL pattern: ${urlPattern}`);
+            statementResponse = response;
+            successUrl = urlPattern;
             break;
-          }
-        } catch (error) {
-          console.error(`Error fetching statement from ${urlPattern}:`, error.message);
-        }
-      }
-      
-      if (!statementData) {
-        throw new Error('Could not retrieve statement data from any URL pattern');
-      }
-      
-      // Parse the statement data using cheerio
-      console.log('Parsing statement data...');
-      const $statement = cheerio.load(statementData);
-      
-      // Extract consignor information using various selectors
-      let consignorName = '';
-      let consignorEmail = '';
-      let auctionTitle = '';
-      let statementDate = '';
-      let totalDue = '';
-      
-      // Try different selectors for consignor name
-      const nameSelectors = [
-        '.consignor-name',
-        '.seller-name',
-        'h1, h2, h3, h4, h5',
-        'strong:contains("Consignor:")',
-        'strong:contains("Seller:")',
-        'div:contains("Consignor:")',
-        'div:contains("Seller:")',
-        'td:contains("Consignor:")',
-        'td:contains("Seller:")',
-        'p:contains("Consignor:")',
-        'p:contains("Seller:")',
-        'span:contains("Consignor:")',
-        'span:contains("Seller:")',
-        'b:contains("Consignor:")',
-        'b:contains("Seller:")',
-        'tr:contains("Consignor")',
-        'tr:contains("Seller")',
-        'div.header',
-        'div.statement-header',
-        'div.consignor-info',
-        'div.seller-info'
-      ];
-      
-      for (const selector of nameSelectors) {
-        const element = $statement(selector);
-        if (element.length > 0) {
-          const text = element.text().trim();
-          if (text) {
-            // Extract name from text that might contain labels
-            const nameMatch = text.match(/(?:Consignor|Seller)s?:?\s*([^\n\r]+)/);
-            consignorName = nameMatch ? nameMatch[1].trim() : text;
-            console.log(`Found consignor name using selector ${selector}: ${consignorName}`);
-            break;
-          }
-        }
-      }
-      
-      // Try different selectors for consignor email
-      const emailSelectors = [
-        '.consignor-email',
-        '.seller-email',
-        'a[href^="mailto:"]',
-        'span:contains("@")',
-        'div:contains("@")',
-        'td:contains("@")',
-        'p:contains("@")',
-        'div.contact-info',
-        'div.email'
-      ];
-      
-      for (const selector of emailSelectors) {
-        const element = $statement(selector);
-        if (element.length > 0) {
-          let text;
-          
-          // Special handling for mailto links
-          if (selector === 'a[href^="mailto:"]') {
-            const href = element.attr('href');
-            text = href ? href.replace('mailto:', '') : element.text().trim();
           } else {
-            text = element.text().trim();
+            console.log(`Got 200 response from ${urlPattern} but content doesn't appear to be a statement`);
+          }
+        }
+      } catch (error) {
+        console.log(`Failed with URL pattern ${urlPattern}: ${error.message}`);
+      }
+    }
+    
+    if (!statementResponse) {
+      throw new Error('Failed to retrieve consignor statement. Could not find a valid URL pattern.');
+    }
+    
+    console.log(`Successfully retrieved statement from ${successUrl}`);
+    
+    // Save statement HTML for debugging
+    saveDebugHTML('statement.html', statementResponse.data);
+    
+    // Parse the HTML response with cheerio
+    const $ = cheerio.load(statementResponse.data);
+    
+    // Extract consignor information with more robust selectors
+    // Based on the approach in analyze_page.py
+    let consignorName = '';
+    let consignorEmail = '';
+    let auctionTitle = '';
+    let statementDate = '';
+    let totalDue = '';
+    
+    // Extract consignor name using multiple approaches
+    console.log('Extracting consignor name...');
+    
+    // Try direct class selectors
+    const nameSelectors = [
+      '.consignor-name', '.seller-name', '.customer-name', '.buyerName', '.name',
+      'h1, h2, h3, h4, h5',
+      'strong:contains("Consignor:")', 'strong:contains("Seller:")',
+      'div:contains("Consignor:")', 'div:contains("Seller:")',
+      'td:contains("Consignor:")', 'td:contains("Seller:")',
+      'p:contains("Consignor:")', 'p:contains("Seller:")',
+      'span:contains("Consignor:")', 'span:contains("Seller:")',
+      'b:contains("Consignor:")', 'b:contains("Seller:")',
+      'tr:contains("Consignor")', 'tr:contains("Seller")',
+      'div.header', 'div.statement-header', 'div.consignor-info', 'div.seller-info'
+    ];
+    
+    for (const selector of nameSelectors) {
+      const element = $(selector);
+      if (element.length > 0) {
+        const text = element.text().trim();
+        if (text) {
+          // Extract name from text that might contain labels
+          const nameMatch = text.match(/(?:Consignor|Seller|Number)s?:?\s*([^\n\r]+)/);
+          let extractedName = nameMatch ? nameMatch[1].trim() : text;
+          
+          // Clean up the name - try to extract just the company/person name
+          if (extractedName.includes('McLemore Auction Company')) {
+            // Extract the company name
+            const companyMatch = extractedName.match(/(McLemore Auction Company[^\d]*)/);
+            if (companyMatch) extractedName = companyMatch[1].trim();
+          } else if (extractedName.includes('Number:')) {
+            // Extract name from format "Number: XX Name"
+            const numberNameMatch = extractedName.match(/Number:\s*\d+\s*(.+?)(?:House Bidder|Phone|\d{3}-\d{3}-\d{4}|$)/);
+            if (numberNameMatch) extractedName = numberNameMatch[1].trim();
           }
           
-          // Extract email using regex
-          const emailMatch = text.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/);
-          if (emailMatch) {
-            consignorEmail = emailMatch[0];
-            console.log(`Found consignor email using selector ${selector}: ${consignorEmail}`);
-            break;
-          }
+          // Remove phone numbers and addresses
+          extractedName = extractedName
+            .replace(/\(\d{3}\)\s*\d{3}-\d{4}/, '')
+            .replace(/\d{3}-\d{3}-\d{4}/, '')
+            .replace(/\d+\s+[A-Za-z\s]+(?:Ave|St|Rd|Blvd|Drive|Dr|Lane|Ln|Court|Ct|Circle|Cir|Highway|Hwy|Parkway|Pkwy)\b[^,]*,[^,]*,[^,]*/, '')
+            .replace(/House Bidder/i, '')
+            .replace(/\s{2,}/g, ' ')
+            .trim();
+            
+          consignorName = extractedName;
+          console.log(`Found consignor name using selector ${selector}: ${consignorName}`);
+          break;
         }
       }
-      
-      // Try different selectors for auction title
-      const auctionSelectors = [
-        '.auction-title',
-        '.auction-name',
-        'h1:contains("Auction")',
-        'h2:contains("Auction")',
-        'h3:contains("Auction")',
-        'div:contains("Auction")',
-        'strong:contains("Auction")',
-        'b:contains("Auction")',
-        'span:contains("Auction")',
-        'p:contains("Auction")',
-        'td:contains("Auction")',
-        'div.header:contains("Auction")',
-        'div.statement-header:contains("Auction")'
-      ];
-      
-      for (const selector of auctionSelectors) {
-        const element = $statement(selector);
-        if (element.length > 0) {
-          const text = element.text().trim();
-          if (text) {
-            // Extract auction title from text that might contain labels
-            const auctionMatch = text.match(/Auction:?\s*([^\n\r]+)/);
-            auctionTitle = auctionMatch ? auctionMatch[1].trim() : text;
-            console.log(`Found auction title using selector ${selector}: ${auctionTitle}`);
-            break;
-          }
+    }
+    
+    // Extract consignor email
+    console.log('Extracting consignor email...');
+    
+    // Try direct class selectors and email patterns
+    const emailSelectors = [
+      '.consignor-email', '.seller-email', '.customer-email', '.buyerEmail', '.email',
+      'a[href^="mailto:"]',
+      'span:contains("@")', 'div:contains("@")', 'td:contains("@")', 'p:contains("@")',
+      'div.contact-info', 'div.email'
+    ];
+    
+    for (const selector of emailSelectors) {
+      const element = $(selector);
+      if (element.length > 0) {
+        let text;
+        
+        // Special handling for mailto links
+        if (selector === 'a[href^="mailto:"]') {
+          const href = element.attr('href');
+          text = href ? href.replace('mailto:', '') : element.text().trim();
+        } else {
+          text = element.text().trim();
+        }
+        
+        // Extract email using regex
+        const emailMatch = text.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/);
+        if (emailMatch) {
+          consignorEmail = emailMatch[0];
+          console.log(`Found consignor email using selector ${selector}: ${consignorEmail}`);
+          break;
         }
       }
-      
-      // Try different selectors for statement date
-      const dateSelectors = [
-        '.statement-date',
-        '.date',
-        'span:contains("Date")',
-        'div:contains("Date")',
-        'td:contains("Date")',
-        'p:contains("Date")',
-        'strong:contains("Date")',
-        'b:contains("Date")'
-      ];
-      
-      for (const selector of dateSelectors) {
-        const element = $statement(selector);
-        if (element.length > 0) {
-          const text = element.text().trim();
-          if (text) {
-            // Extract date from text that might contain labels
-            const dateMatch = text.match(/Date:?\s*([^\n\r]+)/);
-            statementDate = dateMatch ? dateMatch[1].trim() : text;
-            console.log(`Found statement date using selector ${selector}: ${statementDate}`);
-            break;
+    }
+    
+    // Extract auction title
+    console.log('Extracting auction title...');
+    
+    // Try direct class selectors
+    const auctionSelectors = [
+      '.auction-title', '.auction-name', '.sale-name', '.sale-title',
+      'h1:contains("Auction")', 'h2:contains("Auction")', 'h3:contains("Auction")',
+      'div:contains("Auction")', 'strong:contains("Auction")', 'b:contains("Auction")',
+      'span:contains("Auction")', 'p:contains("Auction")', 'td:contains("Auction")',
+      'div.header:contains("Auction")', 'div.statement-header:contains("Auction")'
+    ];
+    
+    for (const selector of auctionSelectors) {
+      const element = $(selector);
+      if (element.length > 0) {
+        const text = element.text().trim();
+        if (text) {
+          // Extract auction title from text that might contain labels
+          const auctionMatch = text.match(/Auction:?\s*([^\n\r]+)/);
+          let extractedTitle = auctionMatch ? auctionMatch[1].trim() : text;
+          
+          // Clean up the title - remove addresses and phone numbers
+          extractedTitle = extractedTitle
+            .replace(/\d+\s+[A-Za-z\s]+(?:Ave|St|Rd|Blvd|Drive|Dr|Lane|Ln|Court|Ct|Circle|Cir|Highway|Hwy|Parkway|Pkwy)\b[^,]*,[^,]*,[^,]*/, '')
+            .replace(/\(\d{3}\)\s*\d{3}-\d{4}/, '')
+            .replace(/\d{3}-\d{3}-\d{4}/, '')
+            .replace(/FAX/, '')
+            .replace(/mclemoreauction\.com/, '')
+            .trim();
+          
+          // If we have auction code, use it in the title
+          if (!extractedTitle.includes(auctionCode)) {
+            extractedTitle = `Auction #${auctionCode}${extractedTitle ? ': ' + extractedTitle : ''}`;
           }
+          
+          auctionTitle = extractedTitle;
+          console.log(`Found auction title using selector ${selector}: ${auctionTitle}`);
+          break;
         }
       }
-      
-      // Try different selectors for total due
-      const totalSelectors = [
-        '.total-due',
-        '.total',
-        'td:contains("Total Due")',
-        'td:contains("Balance Due")',
-        'td:contains("Amount Due")',
-        'div:contains("Total Due")',
-        'div:contains("Balance Due")',
-        'div:contains("Amount Due")',
-        'span:contains("Total Due")',
-        'span:contains("Balance Due")',
-        'span:contains("Amount Due")',
-        'p:contains("Total Due")',
-        'p:contains("Balance Due")',
-        'p:contains("Amount Due")',
-        'strong:contains("Total Due")',
-        'strong:contains("Balance Due")',
-        'strong:contains("Amount Due")',
-        'b:contains("Total Due")',
-        'b:contains("Balance Due")',
-        'b:contains("Amount Due")'
-      ];
-      
-      for (const selector of totalSelectors) {
-        const element = $statement(selector);
-        if (element.length > 0) {
-          const text = element.text().trim();
-          if (text) {
-            // Extract amount from text that might contain labels and currency symbols
-            const amountMatch = text.match(/(?:Total Due|Balance Due|Amount Due):?\s*[$]?([\d,.]+)/);
-            totalDue = amountMatch ? amountMatch[1].trim() : text;
+    }
+    
+    // Extract statement date
+    console.log('Extracting statement date...');
+    
+    // Try direct class selectors
+    const dateSelectors = [
+      '.statement-date', '.date', '.report-date', '.invoice-date',
+      'span:contains("Date")', 'div:contains("Date")', 'td:contains("Date")', 'p:contains("Date")',
+      'strong:contains("Date")', 'b:contains("Date")'
+    ];
+    
+    for (const selector of dateSelectors) {
+      const element = $(selector);
+      if (element.length > 0) {
+        const text = element.text().trim();
+        if (text) {
+          // Extract date from text that might contain labels
+          const dateMatch = text.match(/(?:Date|Statement Date|Report Date):?\s*([^\n\r@]+)/);
+          let extractedDate = dateMatch ? dateMatch[1].trim() : text;
+          
+          // Clean up the date - remove email and other text
+          if (extractedDate.includes('Email:')) {
+            extractedDate = extractedDate.split('Email:')[0].trim();
+          }
+          
+          // Make sure it looks like a date
+          const dateFormatMatch = extractedDate.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
+          if (dateFormatMatch) {
+            extractedDate = dateFormatMatch[1];
+          }
+          
+          statementDate = extractedDate;
+          console.log(`Found statement date using selector ${selector}: ${statementDate}`);
+          break;
+        }
+      }
+    }
+    
+    // Extract total due
+    console.log('Extracting total due...');
+    
+    // Try direct class selectors
+    const totalSelectors = [
+      '.total-due', '.amount-due', '.balance-due', '.total', '.grand-total',
+      'td:contains("Total Due")', 'td:contains("Balance Due")', 'td:contains("Amount Due")',
+      'div:contains("Total Due")', 'div:contains("Balance Due")', 'div:contains("Amount Due")',
+      'span:contains("Total Due")', 'span:contains("Balance Due")', 'span:contains("Amount Due")',
+      'p:contains("Total Due")', 'p:contains("Balance Due")', 'p:contains("Amount Due")',
+      'strong:contains("Total Due")', 'strong:contains("Balance Due")', 'strong:contains("Amount Due")',
+      'b:contains("Total Due")', 'b:contains("Balance Due")', 'b:contains("Amount Due")'
+    ];
+    
+    for (const selector of totalSelectors) {
+      const element = $(selector);
+      if (element.length > 0) {
+        const text = element.text().trim();
+        if (text) {
+          // Extract amount from text that might contain labels and currency symbols
+          const amountMatch = text.match(/(?:Total Due|Balance Due|Amount Due|Total Amount Due):?\s*[$]?([\d,.]+)/);
+          let extractedAmount = amountMatch ? amountMatch[1].trim() : text;
+          
+          // If we couldn't extract a number, try to find a sibling element with the amount
+          if (!/^\d[\d,.]*$/.test(extractedAmount)) {
+            // Try to find a sibling element with a dollar amount
+            const siblings = element.siblings();
+            siblings.each((i, sibling) => {
+              const siblingText = $(sibling).text().trim();
+              const siblingMatch = siblingText.match(/[$]?([\d,.]+)/);
+              if (siblingMatch && /^\d[\d,.]*$/.test(siblingMatch[1])) {
+                extractedAmount = siblingMatch[1];
+                return false; // break the each loop
+              }
+            });
+          }
+          
+          // If we still don't have a number, try the parent row
+          if (!/^\d[\d,.]*$/.test(extractedAmount)) {
+            const parentRow = element.closest('tr');
+            if (parentRow.length > 0) {
+              const rowText = parentRow.text().trim();
+              const rowMatch = rowText.match(/[$]?([\d,.]+)/);
+              if (rowMatch && /^\d[\d,.]*$/.test(rowMatch[1])) {
+                extractedAmount = rowMatch[1];
+              }
+            }
+          }
+          
+          // If we have a number, use it
+          if (/^\d[\d,.]*$/.test(extractedAmount)) {
+            totalDue = extractedAmount;
             console.log(`Found total due using selector ${selector}: ${totalDue}`);
             break;
           }
         }
       }
-      
-      // If we couldn't find specific fields, try to extract them from the entire document
-      if (!consignorName || !consignorEmail || !auctionTitle || !statementDate || !totalDue) {
-        console.log('Some fields missing, trying to extract from entire document...');
-        const fullText = $statement('body').text();
-        
-        // Extract email if not found
-        if (!consignorEmail) {
-          const emailMatch = fullText.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/);
-          if (emailMatch) {
-            consignorEmail = emailMatch[0];
-            console.log(`Found consignor email in full text: ${consignorEmail}`);
-          }
-        }
-        
-        // Extract total due if not found
-        if (!totalDue) {
-          const totalMatch = fullText.match(/(?:Total Due|Balance Due|Amount Due):?\s*[$]?([\d,.]+)/);
-          if (totalMatch) {
-            totalDue = totalMatch[1].trim();
-            console.log(`Found total due in full text: ${totalDue}`);
-          }
-        }
-      }
-      
-      // Format the data for the response
-      const consignorData = {
-        name: consignorName || `Consignor ${consignorId}`,
-        email: consignorEmail || '',
-        auctionTitle: auctionTitle || `Auction ${auctionCode}`,
-        statementDate: statementDate || new Date().toLocaleDateString(),
-        totalDue: totalDue || '0.00'
-      };
-      
-      console.log('Successfully extracted consignor data:', JSON.stringify(consignorData));
-      
-      return {
-        statusCode: 200,
-        body: JSON.stringify(consignorData)
-      };
-      
-    } catch (error) {
-      console.error('Error in form login or data extraction:', error.message);
-      if (error.response) {
-        console.error('Response status:', error.response.status);
-        console.error('Response headers:', JSON.stringify(error.response.headers));
-      }
-      throw error;
     }
-  } catch (error) {
-    console.error('Error:', error.message);
-    console.error('Stack trace:', error.stack);
     
+    // If we still couldn't extract the data properly, try a more aggressive approach
+    // by parsing the raw HTML for specific patterns
+    if (!consignorName || !consignorEmail || !auctionTitle || !statementDate || !totalDue) {
+      console.log('Using aggressive HTML parsing approach');
+      const htmlString = statementResponse.data;
+      
+      // Look for consignor name in the raw HTML
+      if (!consignorName) {
+        const nameRegex = /(?:Consignor|Seller|Customer)[\s:]+([^<\n\r]+)/i;
+        const nameMatch = htmlString.match(nameRegex);
+        if (nameMatch && nameMatch[1]) {
+          consignorName = nameMatch[1].trim();
+          console.log('Found consignor name in raw HTML:', consignorName);
+        }
+      }
+      
+      // Look for consignor email in the raw HTML
+      if (!consignorEmail) {
+        const emailRegex = /([\w.-]+@[\w.-]+\.[a-zA-Z]{2,})/g;
+        const emailMatches = htmlString.match(emailRegex);
+        if (emailMatches && emailMatches.length > 0) {
+          consignorEmail = emailMatches[0];
+          console.log('Found consignor email in raw HTML:', consignorEmail);
+        }
+      }
+      
+      // Look for auction title in the raw HTML
+      if (!auctionTitle) {
+        const titleRegex = /(?:Auction|Sale)[\s:]+([^<\n\r]+)/i;
+        const titleMatch = htmlString.match(titleRegex);
+        if (titleMatch && titleMatch[1]) {
+          auctionTitle = titleMatch[1].trim();
+          console.log('Found auction title in raw HTML:', auctionTitle);
+        }
+      }
+      
+      // Look for statement date in the raw HTML
+      if (!statementDate) {
+        const dateRegex = /(?:Date|Statement Date|Report Date)[\s:]+([^<\n\r@]+)/i;
+        const dateMatch = htmlString.match(dateRegex);
+        if (dateMatch && dateMatch[1]) {
+          statementDate = dateMatch[1].trim();
+          console.log('Found statement date in raw HTML:', statementDate);
+        }
+      }
+      
+      // Look for total due in the raw HTML
+      if (!totalDue) {
+        // Try to find a dollar amount near "Total Due" or similar phrases
+        const dueRegex = /(?:Total|Due|Balance|Amount)[\s:]+\$?(\d[\d,.]+)/i;
+        const dueMatch = htmlString.match(dueRegex);
+        if (dueMatch && dueMatch[1]) {
+          totalDue = dueMatch[1].trim();
+          console.log('Found total due in raw HTML:', totalDue);
+        } else {
+          // Try to find any dollar amount in a table cell
+          const dollarRegex = /<td[^>]*>\s*\$?(\d[\d,.]+)\s*<\/td>/i;
+          const dollarMatch = htmlString.match(dollarRegex);
+          if (dollarMatch && dollarMatch[1]) {
+            totalDue = dollarMatch[1].trim();
+            console.log('Found dollar amount in table cell:', totalDue);
+          }
+        }
+      }
+    }
+    
+    // Final cleanup of the extracted data
+    if (consignorName) {
+      // Remove any remaining numbers, phone numbers, or addresses
+      consignorName = consignorName
+        .replace(/Number:\s*\d+/, '')
+        .replace(/\d{3}-\d{3}-\d{4}/, '')
+        .replace(/Phone\s+\(\d{3}\)\s+\d{3}-\d{4}/, '')
+        .replace(/\d+\s+[A-Za-z\s]+(?:Ave|St|Rd|Blvd|Drive|Dr|Lane|Ln|Court|Ct|Circle|Cir)\b[^,]*,[^,]*,[^,]*/, '')
+        .replace(/House Bidder/i, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      
+      // If it's still too long, try to extract just the name part
+      if (consignorName.length > 50) {
+        const nameParts = consignorName.split(/\s{2,}|\t/);
+        if (nameParts.length > 1) {
+          // Take the first substantial part that looks like a name
+          for (const part of nameParts) {
+            if (part.length > 3 && !/^\d+$/.test(part)) {
+              consignorName = part.trim();
+              break;
+            }
+          }
+        }
+      }
+    }
+    
+    if (auctionTitle) {
+      // Make sure auction title is clean and includes the auction code
+      auctionTitle = auctionTitle
+        .replace(/Company470 Woodycrest AveNashville, TN 37210/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+        
+      if (!auctionTitle.includes(auctionCode)) {
+        auctionTitle = `Auction #${auctionCode}${auctionTitle ? ': ' + auctionTitle : ''}`;
+      }
+    }
+    
+    // Create consignor data object with fallbacks if data couldn't be extracted
+    const consignorData = {
+      name: consignorName || 'Unknown',
+      email: consignorEmail || '',
+      auctionTitle: auctionTitle || `Auction #${auctionCode}`,
+      statementDate: statementDate || new Date().toLocaleDateString(),
+      totalDue: totalDue || '0.00'
+    };
+    
+    console.log('Successfully extracted consignor data:', JSON.stringify(consignorData));
+    
+    // Return the consignor data
     return {
-      statusCode: 500,
-      headers,
+      statusCode: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*', // Allow cross-origin requests
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+      },
+      body: JSON.stringify(consignorData)
+    };
+    
+  } catch (error) {
+    console.error('Error fetching consignor data:', error);
+    
+    // Return a structured error response
+    return {
+      statusCode: error.statusCode || 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+      },
       body: JSON.stringify({
-        success: false,
-        error: error.message
+        error: true,
+        message: error.message || 'An error occurred while fetching consignor data',
+        details: process.env.NODE_ENV !== 'production' ? error.stack : undefined
       })
     };
   }
+};
+
+// Handle OPTIONS requests for CORS preflight
+exports.handler = async (event, context) => {
+  // Handle preflight OPTIONS request
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS'
+      },
+      body: ''
+    };
+  }
+  
+  // Handle POST request
+  if (event.httpMethod === 'POST') {
+    return await getConsignorData(event, context);
+  }
+  
+  // Return method not allowed for other request types
+  return {
+    statusCode: 405,
+    body: JSON.stringify({ error: true, message: 'Method not allowed' })
+  };
 };

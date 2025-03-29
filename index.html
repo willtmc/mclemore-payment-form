@@ -741,6 +741,17 @@
           return;
         }
         
+        // Validate input formats
+        if (!/^\d+$/.test(auctionCode)) {
+          alert('Auction Code should contain only numbers.');
+          return;
+        }
+        
+        if (!/^\d+$/.test(consignorId)) {
+          alert('Consignor ID should contain only numbers.');
+          return;
+        }
+        
         // Show loading state
         document.getElementById('retrieveStatement').disabled = true;
         document.getElementById('retrieveStatement').textContent = 'Loading...';
@@ -848,8 +859,15 @@
       const username = currentUser.username;
       const password = document.getElementById('password').value.trim();
       
+      // Show loading state
+      const retrieveButton = document.getElementById('retrieveStatement');
+      if (retrieveButton) {
+        retrieveButton.disabled = true;
+        retrieveButton.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Retrieving Data...';
+      }
+      
       // Call the get-consignor-data function with credentials
-      fetch('/.netlify/functions/get-consignor-data', {
+      return fetch('/.netlify/functions/get-consignor-data', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -864,7 +882,9 @@
       })
       .then(response => {
         if (!response.ok) {
-          throw new Error('Failed to retrieve consignor data');
+          return response.json().then(errorData => {
+            throw new Error(errorData.message || 'Failed to retrieve consignor data');
+          });
         }
         return response.json();
       })
@@ -900,7 +920,7 @@
                 </div>
                 <div>
                   <p class="text-sm text-gray-500">Consignor Email:</p>
-                  <p class="font-medium text-gray-800">${data.email}</p>
+                  <p class="font-medium text-gray-800">${data.email || 'Not available'}</p>
                 </div>
                 <div>
                   <p class="text-sm text-gray-500">Auction:</p>
@@ -912,7 +932,7 @@
                 </div>
                 <div>
                   <p class="text-sm text-gray-500">Total Amount Due:</p>
-                  <p class="font-medium text-primary text-lg">${data.totalDue}</p>
+                  <p class="font-medium text-primary text-lg">$${data.totalDue}</p>
                 </div>
                 <div>
                   <p class="text-sm text-gray-500">Auction Code:</p>
@@ -924,7 +944,7 @@
                 </div>
                 <div>
                   <p class="text-sm text-gray-500">Retrieved By:</p>
-                  <p class="font-medium text-gray-800">${data.fetchedBy || username}</p>
+                  <p class="font-medium text-gray-800">${username}</p>
                 </div>
               </div>
             </div>
@@ -933,10 +953,12 @@
               <button onclick="resetForm()" class="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
                 Cancel
               </button>
+              ${data.email ? `
               <button onclick="sendPaymentLink('${paymentFormUrl}', '${data.email}', '${data.name}', '${data.auctionTitle}')" class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors">
                 Send Payment Link
               </button>
-              <button onclick="copyPaymentUrl('${paymentFormUrl}')" class="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
+              ` : ''}
+              <button onclick="copyPaymentUrl('${paymentFormUrl}')" class="px-6 py-3 ${!data.email ? 'bg-primary text-white' : 'bg-white border border-gray-300 text-gray-700'} font-medium rounded-md hover:${!data.email ? 'bg-primary/90' : 'bg-gray-50'} focus:outline-none focus:ring-2 focus:ring-${!data.email ? 'primary' : 'gray-500'} focus:ring-offset-2 transition-colors">
                 Copy Payment URL
               </button>
             </div>
@@ -947,10 +969,12 @@
       })
       .catch(error => {
         console.error('Error fetching consignor data:', error);
-        alert(error.message || 'Failed to retrieve consignor data. Please try again.');
+        
+        // Show error message
+        const errorMessage = error.message || 'Failed to retrieve consignor data. Please try again.';
+        alert(errorMessage);
         
         // Reset button state
-        const retrieveButton = document.getElementById('retrieveStatement');
         if (retrieveButton) {
           retrieveButton.disabled = false;
           retrieveButton.textContent = 'Generate Payment Form';
@@ -1088,9 +1112,16 @@
             return;
           }
           
-          // Show loading state
-          retrieveButton.disabled = true;
-          retrieveButton.textContent = 'Loading...';
+          // Validate input formats
+          if (!/^\d+$/.test(auctionCode)) {
+            alert('Auction Code should contain only numbers.');
+            return;
+          }
+          
+          if (!/^\d+$/.test(consignorId)) {
+            alert('Consignor ID should contain only numbers.');
+            return;
+          }
           
           // Fetch consignor data from API
           fetchConsignorData(auctionCode, consignorId);
