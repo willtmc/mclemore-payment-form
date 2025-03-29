@@ -1,667 +1,271 @@
 // Netlify Function to retrieve consignor data
 const axios = require('axios');
 const cheerio = require('cheerio');
-const fs = require('fs'); // For debugging file writes
-const path = require('path');
-const querystring = require('querystring');
 
-// Base URL for the McLemore Auction admin system
-const BASE_URL = 'https://www.mclemoreauction.com';
+/**
+ * Fetches consignor data from the McLemore Auction admin system
+ * @param {string} auctionCode - The auction code
+ * @param {string} consignorId - The consignor ID
+ * @returns {Promise<Object>} - The consignor data
+ */
+exports.handler = async function(event, context) {
+  // Only allow POST requests
+  if (event.httpMethod !== 'POST') {
+    return {
+      statusCode: 405,
+      body: JSON.stringify({ error: 'Method Not Allowed' })
+    };
+  }
 
-// Configure axios defaults
-const axiosInstance = axios.create({
-  baseURL: BASE_URL,
-  withCredentials: true,
-  maxRedirects: 5,
-  timeout: 30000, // Increase timeout for production environment
-  headers: {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.5',
-    'Content-Type': 'application/x-www-form-urlencoded'
-  },
-  // Use transformRequest to ensure data is properly formatted as form data
-  transformRequest: [(data, headers) => {
-    if (data && headers['Content-Type'] === 'application/x-www-form-urlencoded') {
-      return querystring.stringify(data);
-    }
-    return data;
-  }]
-});
+  // Parse the request body
+  let requestBody;
+  try {
+    requestBody = JSON.parse(event.body);
+  } catch (error) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: 'Invalid request body' })
+    };
+  }
 
-// Helper function to save debug HTML in development only
-const saveDebugHTML = (filename, content) => {
-  // Only save debug files in development environment
-  if (process.env.NODE_ENV !== 'production') {
-    try {
-      const tempDir = process.env.NETLIFY ? '/tmp' : '/tmp';
-      if (!fs.existsSync(tempDir)) {
-        fs.mkdirSync(tempDir, { recursive: true });
-      }
-      const filePath = path.join(tempDir, filename);
-      fs.writeFileSync(filePath, content);
-      console.log(`Saved ${filename} HTML to ${filePath}`);
-    } catch (error) {
-      console.error(`Error saving debug HTML: ${error.message}`);
-    }
+  // Extract auction code and consignor ID from request
+  const { auctionCode, consignorId } = requestBody;
+
+  // Validate required parameters
+  if (!auctionCode || !consignorId) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ error: 'Missing required parameters: auctionCode and consignorId' })
+    };
+  }
+
+  try {
+    // Get consignor data
+    const consignorData = await getConsignorData(auctionCode, consignorId);
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify(consignorData)
+    };
+  } catch (error) {
+    console.error('Error fetching consignor data:', error);
+
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ 
+        error: 'Failed to fetch consignor data', 
+        message: error.message 
+      })
+    };
   }
 };
 
 /**
- * Netlify function to fetch consignor data from McLemore Auction
- * This function authenticates with the McLemore Auction admin system and retrieves
- * consignor statement data for a specific auction and consignor ID.
+ * Gets consignor data from the McLemore Auction admin system
+ * @param {string} auctionCode - The auction code
+ * @param {string} consignorId - The consignor ID
+ * @returns {Promise<Object>} - The consignor data
  */
-async function getConsignorData(event, context) {
-  // Set CORS headers
-  const headers = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
-  };
-
-  console.log('Starting get-consignor-data function...');
-
+async function getConsignorData(auctionCode, consignorId) {
   try {
-    // Parse request body
-    const data = JSON.parse(event.body);
-    const { username, password, auctionCode, consignorId } = data;
+    console.log('Fetching consignor data for auction:', auctionCode, 'consignor:', consignorId);
     
-    // Validate required parameters
-    if (!username || !password || !auctionCode || !consignorId) {
-      throw new Error('Missing required parameters. Please provide username, password, auctionCode, and consignorId.');
-    }
+    // Fetch the statement HTML
+    const statementHtml = await fetchStatementHtml(auctionCode, consignorId);
     
-    console.log(`Attempting to fetch data for auction ${auctionCode}, consignor ${consignorId}`);
-    console.log(`Debug info - Username: ${username}, Password: [REDACTED]`);
-    
-    // Create a cookie jar to store cookies between requests
-    const cookieJar = {};
-    
-    // Intercept responses to capture cookies
-    axiosInstance.interceptors.response.use(response => {
-      const cookies = response.headers['set-cookie'];
-      if (cookies) {
-        cookies.forEach(cookie => {
-          const [cookieMain] = cookie.split(';');
-          const [cookieName, cookieValue] = cookieMain.split('=');
-          cookieJar[cookieName] = cookieValue;
-        });
-        
-        // Update cookies for future requests
-        const cookieString = Object.entries(cookieJar)
-          .map(([name, value]) => `${name}=${value}`)
-          .join('; ');
-        
-        axiosInstance.defaults.headers.common['Cookie'] = cookieString;
-        console.log('Updated cookies:', cookieString);
-      }
-      return response;
-    });
-    
-    // Follow the exact same login steps as in invoice_scraper.py
-    
-    // Step 1: Get login page first
-    console.log('Step 1: Fetching login page...');
-    const loginPageUrl = `${BASE_URL}/login`;
-    const loginPageResponse = await axiosInstance.get(loginPageUrl);
-    console.log(`Login page status: ${loginPageResponse.status}`);
-    
-    // Save login page HTML for debugging
-    saveDebugHTML('login-page.html', loginPageResponse.data);
-    
-    // Extract any CSRF token or hidden fields from the login form if needed
-    const loginPage$ = cheerio.load(loginPageResponse.data);
-    const csrfToken = loginPage$('input[name="csrf_token"]').val() || '';
-    
-    // Step 2: Check cookies
-    console.log('Step 2: Checking cookies...');
-    const cookiesResponse = await axiosInstance.get(`${BASE_URL}/api/cookies`);
-    console.log(`Cookies check status: ${cookiesResponse.status}`);
-    console.log('Cookies:', JSON.stringify(cookiesResponse.data));
-    
-    // Step 3: Getting session
-    console.log('Step 3: Getting session...');
-    const sessionUrl = `${BASE_URL}/api/getsession`;
-    const sessionResponse = await axiosInstance.get(sessionUrl);
-    console.log(`Session response status: ${sessionResponse.status}`);
-    console.log('Session data:', JSON.stringify(sessionResponse.data));
-    
-    // Step 4: Setting request URL
-    console.log('Step 4: Setting request URL...');
-    const setRequestUrlData = {
-      url: BASE_URL + '/'
-    };
-    const setRequestUrlResponse = await axiosInstance.post(
-      `${BASE_URL}/api/setrequesturl`,
-      setRequestUrlData
-    );
-    console.log(`Set request URL status: ${setRequestUrlResponse.status}`);
-    
-    // Step 5: Perform login
-    console.log('Step 5: Attempting login...');
-    const loginUrl = `${BASE_URL}/api/ajaxlogin`;
-    const loginData = {
-      user_name: username,
-      password: password,
-      autologin: ''
-    };
-    
-    // Make the login request
-    const loginResponse = await axiosInstance.post(loginUrl, loginData, {
-      maxRedirects: 0,
-      validateStatus: status => status >= 200 && status < 400,
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Origin': BASE_URL,
-        'Referer': `${BASE_URL}/login/`
-      }
-    });
-    console.log(`Login response status: ${loginResponse.status}`);
-    console.log('Login response data:', JSON.stringify(loginResponse.data));
-    
-    // Check if login was successful
-    const responseData = loginResponse.data;
-    
-    // Check for success in the response data
-    if (responseData.status !== 'success') {
-      throw new Error(`Login failed: ${responseData.msg || 'Unknown error'}`);
-    }
-    
-    console.log('Login successful! Initializing session data...');
-    
-    // Step 6: Get initial data (required after login)
-    console.log('Step 6: Fetching initial data...');
-    axiosInstance.defaults.headers.common['Referer'] = BASE_URL + '/';
-    const initDataResponse = await axiosInstance.get(`${BASE_URL}/api/initdata`);
-    console.log(`Init data status: ${initDataResponse.status}`);
-    console.log('Init data:', JSON.stringify(initDataResponse.data));
-    
-    // Step 7: Get auctions data (required after login)
-    console.log('Step 7: Fetching auctions data...');
-    const auctionsData = {
-      past_sales: 'false',
-      meta_also: 'true'
-    };
-    const auctionsResponse = await axiosInstance.post(
-      `${BASE_URL}/api/auctions`,
-      auctionsData
-    );
-    console.log(`Auctions data status: ${auctionsResponse.status}`);
-    console.log('Auctions data:', JSON.stringify(auctionsResponse.data));
-    
-    console.log('Session fully initialized!');
-    
-    // Now try to fetch the consignor statement
-    console.log('Attempting to fetch consignor statement...');
-    
-    // Try multiple potential statement URLs, starting with the most likely ones
-    const urlPatterns = [
-      // Standard statement URLs
-      `/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`,
-      `/statements/view/auction/${auctionCode}/sellerid/${consignorId}`,
-      `/statements/printreport/${auctionCode}/${consignorId}`,
-      `/statements/view/${auctionCode}/${consignorId}`,
-      // Reports URLs
-      `/reports/consignor/${auctionCode}/${consignorId}`,
-      `/reports/consignor/auction/${auctionCode}/sellerid/${consignorId}`,
-      // Admin URLs (fallback)
-      `/admin/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`,
-      `/admin/statements/view/auction/${auctionCode}/sellerid/${consignorId}`,
-      `/admin/statements/printreport/${auctionCode}/${consignorId}`,
-      `/admin/statements/view/${auctionCode}/${consignorId}`,
-      `/admin/reports/consignor/${auctionCode}/${consignorId}`
-    ];
-    
-    let statementResponse = null;
-    let successUrl = null;
-    
-    for (const urlPattern of urlPatterns) {
-      try {
-        console.log(`Trying URL pattern: ${urlPattern}`);
-        const response = await axiosInstance.get(BASE_URL + urlPattern, { 
-          maxRedirects: 5,
-          headers: {
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Referer': `${BASE_URL}/admin/dashboard`
-          }
-        });
-        
-        if (response.status === 200) {
-          // Check if the response contains statement-related content
-          const html = response.data;
-          if (html.includes('Statement') || html.includes('Consignor') || 
-              html.includes('Seller') || html.includes('Total Due')) {
-            console.log(`Success with URL pattern: ${urlPattern}`);
-            statementResponse = response;
-            successUrl = urlPattern;
-            break;
-          } else {
-            console.log(`Got 200 response from ${urlPattern} but content doesn't appear to be a statement`);
-          }
-        }
-      } catch (error) {
-        console.log(`Failed with URL pattern ${urlPattern}: ${error.message}`);
-      }
-    }
-    
-    if (!statementResponse) {
-      throw new Error('Failed to retrieve consignor statement. Could not find a valid URL pattern.');
-    }
-    
-    console.log(`Successfully retrieved statement from ${successUrl}`);
-    
-    // Save statement HTML for debugging
-    saveDebugHTML('statement.html', statementResponse.data);
-    
-    // Parse the HTML response with cheerio
-    const statement$ = cheerio.load(statementResponse.data);
+    // Load the HTML into cheerio for parsing
+    const $ = cheerio.load(statementHtml);
     
     // Initialize variables to store extracted data
     let consignorName = '';
     let consignorEmail = '';
     let auctionTitle = '';
     let statementDate = '';
-    let totalAmountDue = '';
+    let totalDue = '';
     
     // Log the HTML for debugging
-    console.log('Statement HTML length:', statementResponse.data.length);
-    console.log('First 500 chars of statement HTML:', statementResponse.data.substring(0, 500));
+    console.log('Statement HTML length:', statementHtml.length);
+    console.log('First 500 chars of statement HTML:', statementHtml.substring(0, 500));
     
-    // Extract consignor name - look for patterns in the statement
+    // Extract the full text content for pattern matching
+    const fullText = $('body').text();
+    console.log('Full text length:', fullText.length);
+    console.log('Text sample:', fullText.substring(0, 500));
+    
+    // Extract consignor name using the specific format from the example
     console.log('Extracting consignor name...');
     
-    // Try to find seller information section
-    const sellerInfo = statement$('body').text().match(/Seller Number:\s*\d+\s+([^\n]+)/i);
-    if (sellerInfo && sellerInfo[1]) {
-      consignorName = sellerInfo[1].trim();
-      console.log('Found consignor name from seller info:', consignorName);
+    // Pattern: "Seller Number: XX Name"
+    const sellerPattern = /Seller\s+Number:\s*(\d+)\s+([^\n\r]+?)(?=\s+\d+|\s+Phone|\s+McLemore|$)/i;
+    const sellerMatch = fullText.match(sellerPattern);
+    
+    if (sellerMatch && sellerMatch[2]) {
+      consignorName = sellerMatch[2].trim();
+      console.log('Found consignor name from seller pattern:', consignorName);
     } else {
-      // Fallback to other selectors
-      const nameSelectors = [
-        '.consignor-name', '.seller-name', '.customer-name', 
-        'h1', 'h2', 'h3', 'strong', 'b'
-      ];
+      // Fallback to a simpler pattern if the specific one doesn't match
+      const simpleNamePattern = /(?:Seller|Consignor)\s*(?:Number|#)?\s*:\s*(?:\d+\s+)?([^\n\r]+?)(?=\s+\d+|\s+Phone|\s+McLemore|$)/i;
+      const simpleNameMatch = fullText.match(simpleNamePattern);
       
-      for (const selector of nameSelectors) {
-        const elements = statement$(selector);
-        if (elements.length > 0) {
-          elements.each((i, el) => {
-            const text = statement$(el).text().trim();
-            // Check if this looks like a name (not too long, no HTML tags)
-            if (text && text.length > 2 && text.length < 100 && !text.includes('<') && !text.includes('>')) {
-              consignorName = text;
-              console.log(`Found consignor name using selector ${selector}:`, consignorName);
-              return false; // Break the each loop
-            }
-          });
-          
-          if (consignorName) break; // Break the selector loop if name found
-        }
+      if (simpleNameMatch && simpleNameMatch[1]) {
+        consignorName = simpleNameMatch[1].trim();
+        console.log('Found consignor name from simple pattern:', consignorName);
+      } else {
+        // If still not found, use a very generic approach
+        consignorName = `Consignor ${consignorId}`;
+        console.log('Using generic consignor name:', consignorName);
       }
     }
     
     // Extract consignor email
     console.log('Extracting consignor email...');
     
-    // Look for email in the statement text
-    const emailMatch = statement$('body').text().match(/Email:\s*([\w.-]+@[\w.-]+\.[a-zA-Z]{2,})/i);
+    // Pattern: "Email: email@example.com"
+    const emailPattern = /Email\s*:\s*([\w.-]+@[\w.-]+\.[a-zA-Z]{2,})/i;
+    const emailMatch = fullText.match(emailPattern);
+    
     if (emailMatch && emailMatch[1]) {
       consignorEmail = emailMatch[1].trim();
-      console.log('Found consignor email from statement text:', consignorEmail);
+      console.log('Found consignor email from pattern:', consignorEmail);
     } else {
-      // Try direct class selectors and email patterns
-      const emailSelectors = [
-        '.consignor-email', '.seller-email', '.customer-email', '.buyerEmail', '.email',
-        'a[href^="mailto:"]',
-        'span:contains("@")', 'div:contains("@")', 'td:contains("@")', 'p:contains("@")'
-      ];
+      // Try to find any email address in the text
+      const anyEmailPattern = /[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g;
+      const anyEmails = fullText.match(anyEmailPattern);
       
-      for (const selector of emailSelectors) {
-        const elements = statement$(selector);
-        if (elements.length > 0) {
-          elements.each((i, el) => {
-            const element = statement$(el);
-            let text;
-            
-            // Special handling for mailto links
-            if (selector === 'a[href^="mailto:"]') {
-              const href = element.attr('href');
-              text = href ? href.replace('mailto:', '') : element.text().trim();
-            } else {
-              text = element.text().trim();
-            }
-            
-            // Extract email using regex
-            const emailMatch = text.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/);
-            if (emailMatch) {
-              consignorEmail = emailMatch[0];
-              console.log(`Found consignor email using selector ${selector}: ${consignorEmail}`);
-              return false; // Break the each loop
-            }
-          });
-          
-          if (consignorEmail) break; // Break the selector loop if email found
-        }
+      if (anyEmails && anyEmails.length > 0) {
+        // Use the first email found
+        consignorEmail = anyEmails[0];
+        console.log('Found email in text:', consignorEmail);
+      } else {
+        // If no email found, construct one from consignor ID
+        consignorEmail = `${consignorId}@mclemoreauction.com`;
+        console.log('Using constructed email:', consignorEmail);
       }
-    }
-    
-    // If email not found in HTML, try to construct from consignor ID
-    if (!consignorEmail && consignorId) {
-      consignorEmail = `${consignorId}@mclemoreauction.com`;
-      console.log(`Generated email from consignor ID: ${consignorEmail}`);
     }
     
     // Extract auction title
     console.log('Extracting auction title...');
     
-    // Try direct class selectors
-    const auctionSelectors = [
-      '.auction-title', '.auction-name', '.sale-name', '.sale-title',
-      'h1:contains("Auction")', 'h2:contains("Auction")', 'h3:contains("Auction")',
-      'div:contains("Auction")', 'strong:contains("Auction")', 'b:contains("Auction")',
-      'span:contains("Auction")', 'p:contains("Auction")', 'td:contains("Auction")',
-      'div.header:contains("Auction")', 'div.statement-header:contains("Auction")'
-    ];
+    // Pattern: "Statement For: Title"
+    const titlePattern = /Statement\s+For:\s*([^\n\r]+)/i;
+    const titleMatch = fullText.match(titlePattern);
     
-    for (const selector of auctionSelectors) {
-      const element = statement$(selector);
-      if (element.length > 0) {
-        const text = element.text().trim();
-        if (text) {
-          // Extract auction title from text that might contain labels
-          const auctionMatch = text.match(/Auction:?\s*([^\n\r]+)/);
-          let extractedTitle = auctionMatch ? auctionMatch[1].trim() : text;
-          
-          // Clean up the title - remove addresses and phone numbers
-          extractedTitle = extractedTitle
-            .replace(/\d+\s+[A-Za-z\s]+(?:Ave|St|Rd|Blvd|Drive|Dr|Lane|Ln|Court|Ct|Circle|Cir|Highway|Hwy|Parkway|Pkwy)\b[^,]*,[^,]*,[^,]*/, '')
-            .replace(/\(\d{3}\)\s*\d{3}-\d{4}/, '')
-            .replace(/\d{3}-\d{3}-\d{4}/, '')
-            .replace(/FAX/, '')
-            .replace(/mclemoreauction\.com/, '')
-            .trim();
-          
-          // If we have auction code, use it in the title
-          if (!extractedTitle.includes(auctionCode)) {
-            extractedTitle = `Auction #${auctionCode}${extractedTitle ? ': ' + extractedTitle : ''}`;
-          }
-          
-          auctionTitle = extractedTitle;
-          console.log(`Found auction title using selector ${selector}: ${auctionTitle}`);
-          break;
-        }
-      }
+    if (titleMatch && titleMatch[1]) {
+      auctionTitle = titleMatch[1].trim();
+      console.log('Found auction title:', auctionTitle);
+    } else {
+      auctionTitle = `Auction #${auctionCode}`;
+      console.log('Using generic auction title:', auctionTitle);
     }
     
     // Extract statement date
     console.log('Extracting statement date...');
     
-    // Try direct class selectors
-    const dateSelectors = [
-      '.statement-date', '.date', '.report-date', '.invoice-date',
-      'span:contains("Date")', 'div:contains("Date")', 'td:contains("Date")', 'p:contains("Date")',
-      'strong:contains("Date")', 'b:contains("Date")'
-    ];
+    // Pattern: "Statement Date: Date"
+    const datePattern = /Statement\s+Date:\s*([^\n\r]+)/i;
+    const dateMatch = fullText.match(datePattern);
     
-    for (const selector of dateSelectors) {
-      const element = statement$(selector);
-      if (element.length > 0) {
-        const text = element.text().trim();
-        if (text) {
-          // Extract date from text that might contain labels
-          const dateMatch = text.match(/(?:Date|Statement Date|Report Date):?\s*([^\n\r@]+)/);
-          let extractedDate = dateMatch ? dateMatch[1].trim() : text;
-          
-          // Clean up the date - remove email and other text
-          if (extractedDate.includes('Email:')) {
-            extractedDate = extractedDate.split('Email:')[0].trim();
-          }
-          
-          // Make sure it looks like a date
-          const dateFormatMatch = extractedDate.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
-          if (dateFormatMatch) {
-            extractedDate = dateFormatMatch[1];
-          }
-          
-          statementDate = extractedDate;
-          console.log(`Found statement date using selector ${selector}: ${statementDate}`);
-          break;
-        }
+    if (dateMatch && dateMatch[1]) {
+      statementDate = dateMatch[1].trim();
+      console.log('Found statement date:', statementDate);
+    } else {
+      statementDate = new Date().toLocaleDateString();
+      console.log('Using current date:', statementDate);
+    }
+    
+    // Extract total amount due
+    console.log('Extracting total amount due...');
+    
+    // Pattern: "Total Amount Due $Amount"
+    const amountPattern = /Total\s+Amount\s+Due\s+\$([\d,.]+)/i;
+    const amountMatch = fullText.match(amountPattern);
+    
+    if (amountMatch && amountMatch[1]) {
+      totalDue = amountMatch[1].trim();
+      console.log('Found total amount due:', totalDue);
+    } else {
+      // Try a simpler pattern
+      const simpleAmountPattern = /(?:Total|Due|Amount)\s+\$([\d,.]+)/i;
+      const simpleAmountMatch = fullText.match(simpleAmountPattern);
+      
+      if (simpleAmountMatch && simpleAmountMatch[1]) {
+        totalDue = simpleAmountMatch[1].trim();
+        console.log('Found amount from simple pattern:', totalDue);
+      } else {
+        totalDue = '0.00';
+        console.log('Using default amount:', totalDue);
       }
     }
     
-    // Extract total due
-    console.log('Extracting total due...');
-    
-    // Try direct class selectors
-    const totalSelectors = [
-      '.total-due', '.amount-due', '.balance-due', '.total', '.grand-total',
-      'td:contains("Total Due")', 'td:contains("Balance Due")', 'td:contains("Amount Due")',
-      'div:contains("Total Due")', 'div:contains("Balance Due")', 'div:contains("Amount Due")',
-      'span:contains("Total Due")', 'span:contains("Balance Due")', 'span:contains("Amount Due")',
-      'p:contains("Total Due")', 'p:contains("Balance Due")', 'p:contains("Amount Due")',
-      'strong:contains("Total Due")', 'strong:contains("Balance Due")', 'strong:contains("Amount Due")',
-      'b:contains("Total Due")', 'b:contains("Balance Due")', 'b:contains("Amount Due")'
-    ];
-    
-    for (const selector of totalSelectors) {
-      const element = statement$(selector);
-      if (element.length > 0) {
-        const text = element.text().trim();
-        if (text) {
-          // Extract amount from text that might contain labels and currency symbols
-          const amountMatch = text.match(/(?:Total Due|Balance Due|Amount Due|Total Amount Due):?\s*[$]?([\d,.]+)/);
-          let extractedAmount = amountMatch ? amountMatch[1].trim() : text;
-          
-          // If we couldn't extract a number, try to find a sibling element with the amount
-          if (!/^\d[\d,.]*$/.test(extractedAmount)) {
-            // Try to find a sibling element with a dollar amount
-            const siblings = element.siblings();
-            siblings.each((i, sibling) => {
-              const siblingText = statement$(sibling).text().trim();
-              const siblingMatch = siblingText.match(/[$]?([\d,.]+)/);
-              if (siblingMatch && /^\d[\d,.]*$/.test(siblingMatch[1])) {
-                extractedAmount = siblingMatch[1];
-                return false; // break the each loop
-              }
-            });
-          }
-          
-          // If we still don't have a number, try the parent row
-          if (!/^\d[\d,.]*$/.test(extractedAmount)) {
-            const parentRow = element.closest('tr');
-            if (parentRow.length > 0) {
-              const rowText = statement$(parentRow).text().trim();
-              const rowMatch = rowText.match(/[$]?([\d,.]+)/);
-              if (rowMatch && /^\d[\d,.]*$/.test(rowMatch[1])) {
-                extractedAmount = rowMatch[1];
-              }
-            }
-          }
-          
-          // If we have a number, use it
-          if (/^\d[\d,.]*$/.test(extractedAmount)) {
-            totalAmountDue = extractedAmount;
-            console.log(`Found total due using selector ${selector}: ${totalAmountDue}`);
-            break;
-          }
-        }
-      }
-    }
-    
-    // If we still couldn't extract the data properly, try a more aggressive approach
-    // by parsing the raw HTML for specific patterns
-    if (!consignorName || !consignorEmail || !auctionTitle || !statementDate || !totalAmountDue) {
-      console.log('Using aggressive HTML parsing approach');
-      const htmlString = statementResponse.data;
-      
-      // Look for consignor name in the raw HTML
-      if (!consignorName) {
-        const nameRegex = /(?:Consignor|Seller|Customer)[\s:]+([^<\n\r]+)/i;
-        const nameMatch = htmlString.match(nameRegex);
-        if (nameMatch && nameMatch[1]) {
-          consignorName = nameMatch[1].trim();
-          console.log('Found consignor name in raw HTML:', consignorName);
-        }
-      }
-      
-      // Look for consignor email in the raw HTML
-      if (!consignorEmail) {
-        const emailRegex = /([\w.-]+@[\w.-]+\.[a-zA-Z]{2,})/g;
-        const emailMatches = htmlString.match(emailRegex);
-        if (emailMatches && emailMatches.length > 0) {
-          consignorEmail = emailMatches[0];
-          console.log('Found consignor email in raw HTML:', consignorEmail);
-        }
-      }
-      
-      // Look for auction title in the raw HTML
-      if (!auctionTitle) {
-        const titleRegex = /(?:Auction|Sale)[\s:]+([^<\n\r]+)/i;
-        const titleMatch = htmlString.match(titleRegex);
-        if (titleMatch && titleMatch[1]) {
-          auctionTitle = titleMatch[1].trim();
-          console.log('Found auction title in raw HTML:', auctionTitle);
-        }
-      }
-      
-      // Look for statement date in the raw HTML
-      if (!statementDate) {
-        const dateRegex = /(?:Date|Statement Date|Report Date)[\s:]+([^<\n\r@]+)/i;
-        const dateMatch = htmlString.match(dateRegex);
-        if (dateMatch && dateMatch[1]) {
-          statementDate = dateMatch[1].trim();
-          console.log('Found statement date in raw HTML:', statementDate);
-        }
-      }
-      
-      // Look for total due in the raw HTML
-      if (!totalAmountDue) {
-        // Try to find a dollar amount near "Total Due" or similar phrases
-        const dueRegex = /(?:Total|Due|Balance|Amount)[\s:]+\$?(\d[\d,.]+)/i;
-        const dueMatch = htmlString.match(dueRegex);
-        if (dueMatch && dueMatch[1]) {
-          totalAmountDue = dueMatch[1].trim();
-          console.log('Found total due in raw HTML:', totalAmountDue);
-        } else {
-          // Try to find any dollar amount in a table cell
-          const dollarRegex = /<td[^>]*>\s*\$?(\d[\d,.]+)\s*<\/td>/i;
-          const dollarMatch = htmlString.match(dollarRegex);
-          if (dollarMatch && dollarMatch[1]) {
-            totalAmountDue = dollarMatch[1].trim();
-            console.log('Found dollar amount in table cell:', totalAmountDue);
-          }
-        }
-      }
-    }
-    
-    // Final cleanup of the extracted data
-    if (consignorName) {
-      // Remove any remaining numbers, phone numbers, or addresses
-      consignorName = consignorName
-        .replace(/Number:\s*\d+/, '')
-        .replace(/\d{3}-\d{3}-\d{4}/, '')
-        .replace(/Phone\s+\(\d{3}\)\s+\d{3}-\d{4}/, '')
-        .replace(/\d+\s+[A-Za-z\s]+(?:Ave|St|Rd|Blvd|Drive|Dr|Lane|Ln|Court|Ct|Circle|Cir)\b[^,]*,[^,]*,[^,]*/, '')
-        .replace(/House Bidder/i, '')
-        .replace(/\s{2,}/g, ' ')
-        .trim();
-      
-      // If it's still too long, try to extract just the name part
-      if (consignorName.length > 50) {
-        const nameParts = consignorName.split(/\s{2,}|\t/);
-        if (nameParts.length > 1) {
-          // Take the first substantial part that looks like a name
-          for (const part of nameParts) {
-            if (part.length > 3 && !/^\d+$/.test(part)) {
-              consignorName = part.trim();
-              break;
-            }
-          }
-        }
-      }
-    }
-    
-    if (auctionTitle) {
-      // Make sure auction title is clean and includes the auction code
-      auctionTitle = auctionTitle
-        .replace(/Company470 Woodycrest AveNashville, TN 37210/g, '')
-        .replace(/\s{2,}/g, ' ')
-        .trim();
-        
-      if (!auctionTitle.includes(auctionCode)) {
-        auctionTitle = `Auction #${auctionCode}${auctionTitle ? ': ' + auctionTitle : ''}`;
-      }
-    }
-    
-    // Create consignor data object with fallbacks if data couldn't be extracted
+    // Create the consignor data object
     const consignorData = {
-      name: consignorName || 'Unknown',
+      name: consignorName || `Consignor ${consignorId}`,
       email: consignorEmail || '',
       auctionTitle: auctionTitle || `Auction #${auctionCode}`,
       statementDate: statementDate || new Date().toLocaleDateString(),
-      totalDue: totalAmountDue || '0.00'
+      totalDue: totalDue || '0.00'
     };
     
     console.log('Successfully extracted consignor data:', JSON.stringify(consignorData));
-    
-    // Return the consignor data
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*', // Allow cross-origin requests
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: JSON.stringify(consignorData)
-    };
-    
+    return consignorData;
   } catch (error) {
-    console.error('Error fetching consignor data:', error);
-    
-    // Return a structured error response
-    return {
-      statusCode: error.statusCode || 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: JSON.stringify({
-        error: true,
-        message: error.message || 'An error occurred while fetching consignor data',
-        details: process.env.NODE_ENV !== 'production' ? error.stack : undefined
-      })
-    };
+    console.error('Error in getConsignorData:', error);
+    throw error;
   }
-};
+}
 
-// Handle OPTIONS requests for CORS preflight
-exports.handler = async (event, context) => {
-  // Handle preflight OPTIONS request
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: ''
-    };
+/**
+ * Fetches the statement HTML from the McLemore Auction admin system
+ * @param {string} auctionCode - The auction code
+ * @param {string} consignorId - The consignor ID (seller ID)
+ * @returns {Promise<string>} - The statement HTML
+ */
+async function fetchStatementHtml(auctionCode, consignorId) {
+  try {
+    console.log('Fetching statement HTML for auction:', auctionCode, 'seller ID:', consignorId);
+    
+    // Get credentials from environment variables
+    const username = process.env.ADMIN_USERNAME;
+    const password = process.env.ADMIN_PASSWORD;
+    
+    if (!username || !password) {
+      throw new Error('Admin credentials not found in environment variables');
+    }
+    
+    // Create a session to maintain cookies
+    const session = axios.create({
+      withCredentials: true,
+      maxRedirects: 5
+    });
+    
+    // Step 1: Login to the admin system
+    console.log('Logging in to admin system...');
+    const loginResponse = await session.post('https://www.mclemoreauction.com/admin/login', 
+      `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, 
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
+    
+    console.log('Login response status:', loginResponse.status);
+    
+    // Step 2: Fetch the statement
+    // Using the correct URL format with sellerid parameter
+    const statementUrl = `https://www.mclemoreauction.com/admin/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`;
+    console.log('Fetching statement from:', statementUrl);
+    
+    const statementResponse = await session.get(statementUrl);
+    console.log('Statement response status:', statementResponse.status);
+    
+    if (statementResponse.status !== 200) {
+      throw new Error(`Failed to fetch statement: ${statementResponse.status}`);
+    }
+    
+    return statementResponse.data;
+  } catch (error) {
+    console.error('Error fetching statement HTML:', error);
+    throw error;
   }
-  
-  // Handle POST request
-  if (event.httpMethod === 'POST') {
-    return await getConsignorData(event, context);
-  }
-  
-  // Return method not allowed for other request types
-  return {
-    statusCode: 405,
-    body: JSON.stringify({ error: true, message: 'Method not allowed' })
-  };
-};
+}
