@@ -224,7 +224,7 @@
                 <div class="flex">
                   <div class="flex-shrink-0">
                     <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                      <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1H9z" clip-rule="evenodd" />
                     </svg>
                   </div>
                   <div class="ml-3">
@@ -501,41 +501,87 @@
           return;
         }
         
-        // Generate a unique payment form URL
-        const paymentFormUrl = generatePaymentFormUrl(auctionCode, consignorId);
-        
-        // Show the generated URL to the MAC staff
-        document.getElementById('step-1').innerHTML = `
-          <div class="text-center py-6">
-            <div class="mb-6 inline-flex items-center justify-center h-24 w-24 rounded-full bg-green-100">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-            <h2 class="text-2xl font-bold text-primary mb-4">Payment Form Generated!</h2>
-            <p class="text-gray-700 mb-6">Share this secure link with the consignor:</p>
-            
-            <div class="bg-gray-50 p-4 rounded-md mb-6 text-left">
-              <p class="font-medium mb-2">Payment Form Link:</p>
-              <div class="flex">
-                <input type="text" value="${paymentFormUrl}" id="payment-url" readonly class="w-full px-4 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition bg-white" />
-                <button onclick="copyToClipboard()" class="px-4 py-2 bg-primary text-white font-medium rounded-r-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors">
-                  Copy
+        // Show loading state
+        document.getElementById('retrieveStatement').disabled = true;
+        document.getElementById('retrieveStatement').textContent = 'Loading...';
+
+        // Simulate fetching consignor data
+        setTimeout(function() {
+          // In a real implementation, this would make an API call to fetch the data
+          // For this example, we'll simulate the data retrieval with mock data
+          const consignorName = 'Mark Consignor';
+          const auctionTitle = 'Commercial Retail Fixtures, Drop-in Ceiling Tiles & Equipment Liquidation - Columbia, TN';
+          const statementDate = '03/29/2025';
+          const totalDue = '$819.62';
+          const consignorEmail = 'mark.consignor@example.com';
+
+          // Generate a unique payment form URL
+          const paymentFormUrl = generatePaymentFormUrl(auctionCode, consignorId);
+
+          // Show confirmation dialog with consignor details
+          document.getElementById('step-1').innerHTML = `
+            <div class="bg-white p-6 rounded-lg">
+              <h2 class="text-xl font-semibold text-primary mb-6">Confirm Consignor Details</h2>
+
+              <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
+                <div class="flex">
+                  <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                      <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                  <div class="ml-3">
+                    <p class="text-sm text-blue-800">
+                      <span class="font-medium">Please verify:</span> The following information will be used to generate a payment form link for the consignor. The link will be sent directly to the consignor's email address.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-gray-50 p-4 rounded-md mb-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p class="text-sm text-gray-500">Consignor Name:</p>
+                    <p class="font-medium text-gray-800">${consignorName}</p>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-500">Consignor Email:</p>
+                    <p class="font-medium text-gray-800">${consignorEmail}</p>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-500">Auction:</p>
+                    <p class="font-medium text-gray-800">${auctionTitle}</p>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-500">Statement Date:</p>
+                    <p class="font-medium text-gray-800">${statementDate}</p>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-500">Total Amount Due:</p>
+                    <p class="font-medium text-primary text-lg">${totalDue}</p>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-500">Auction Code:</p>
+                    <p class="font-medium text-gray-800">${auctionCode}</p>
+                  </div>
+                  <div>
+                    <p class="text-sm text-gray-500">Consignor ID:</p>
+                    <p class="font-medium text-gray-800">${consignorId}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row justify-end gap-4">
+                <button onclick="resetForm()" class="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
+                  Cancel
+                </button>
+                <button onclick="sendPaymentLink('${paymentFormUrl}', '${consignorEmail}', '${consignorName}')" class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors">
+                  Send Payment Link
                 </button>
               </div>
-              <p class="text-xs text-gray-500 mt-2">This link will allow the consignor to securely enter their payment information.</p>
             </div>
-            
-            <div class="flex flex-col sm:flex-row justify-center gap-4">
-              <a href="mailto:?subject=McLemore%20Auction%20Payment%20Form&body=Please%20use%20this%20secure%20link%20to%20submit%20your%20payment%20information%20for%20your%20auction%20proceeds%3A%20${encodeURIComponent(paymentFormUrl)}" class="inline-block px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors text-center">
-                Email to Consignor
-              </a>
-              <button onclick="resetForm()" class="inline-block px-6 py-3 bg-white border border-primary text-primary font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors text-center">
-                Generate Another
-              </button>
-            </div>
-          </div>
-        `;
+          `;
+        }, 1500);
       });
     });
     
@@ -552,6 +598,9 @@
         document.getElementById('auction-title').textContent = 'Commercial Retail Fixtures, Drop-in Ceiling Tiles & Equipment Liquidation - Columbia, TN';
         document.getElementById('statement-date').textContent = '03/29/2025';
         document.getElementById('total-due').textContent = '$819.62';
+        
+        // Store consignor email in a data attribute for later use
+        document.getElementById('consignor-name').dataset.email = 'mark.consignor@example.com';
       }, 1000);
     }
     
@@ -573,6 +622,67 @@
     // Function to reset the form
     function resetForm() {
       window.location.href = window.location.pathname;
+    }
+    
+    // Function to send payment link to consignor
+    function sendPaymentLink(paymentFormUrl, consignorEmail, consignorName) {
+      // Show loading state
+      const sendButton = document.querySelector('button[onclick^="sendPaymentLink"]');
+      if (sendButton) {
+        sendButton.disabled = true;
+        sendButton.textContent = 'Sending...';
+      }
+      
+      // In a real implementation, this would make an API call to send the email
+      // For this example, we'll simulate the email sending process
+      setTimeout(function() {
+        // Show success message
+        document.getElementById('step-1').innerHTML = `
+          <div class="text-center py-6">
+            <div class="mb-6 inline-flex items-center justify-center h-24 w-24 rounded-full bg-green-100">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 class="text-2xl font-bold text-primary mb-4">Payment Form Link Sent!</h2>
+            <p class="text-gray-700 mb-6">A secure payment form link has been sent to:</p>
+            
+            <div class="bg-gray-50 p-4 rounded-md mb-6 text-center">
+              <p class="font-medium text-lg">${consignorName}</p>
+              <p class="text-gray-700">${consignorEmail}</p>
+            </div>
+            
+            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 text-left">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="ml-3">
+                  <p class="text-sm text-yellow-700">
+                    <span class="font-medium">Note:</span> If needed, you can also copy the payment link below.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-gray-50 p-4 rounded-md mb-6 text-left">
+              <p class="font-medium mb-2">Payment Form Link:</p>
+              <div class="flex">
+                <input type="text" value="${paymentFormUrl}" id="payment-url" readonly class="w-full px-4 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition bg-white" />
+                <button onclick="copyToClipboard()" class="px-4 py-2 bg-primary text-white font-medium rounded-r-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors">
+                  Copy
+                </button>
+              </div>
+            </div>
+            
+            <button onclick="resetForm()" class="inline-block px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors text-center">
+              Generate Another
+            </button>
+          </div>
+        `;
+      }, 1500);
     }
   </script>
 </body>
