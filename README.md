@@ -2,17 +2,17 @@
 
 ## Overview
 
-This application implements a secure two-user workflow for collecting payment information from consignors:
+This application implements a secure two-user workflow for collecting payment information from sellers:
 
-1. **MAC Staff Portal**: Allows McLemore Auction Company staff to enter auction code and consignor ID to generate a secure payment form link
-2. **Consignor Payment Form**: Enables consignors to securely submit their banking information for ACH direct deposit
+1. **MAC Staff Portal**: Allows McLemore Auction Company staff to enter auction code and Seller ID to generate a secure payment form link
+2. **Seller Payment Form**: Enables sellers to securely submit their banking information for ACH direct deposit
 
 ## Security Features
 
-- **Two-Step Authentication**: Only users with valid auction code and consignor ID combinations can access payment forms
-- **Secure URL Generation**: Creates unique URLs with tokens for consignors to access their payment forms
+- **Two-Step Authentication**: Only users with valid auction code and Seller ID combinations can access payment forms
+- **Secure URL Generation**: Creates unique URLs with tokens for sellers to access their payment forms
 - **Protected Financial Data**: Sensitive information is only collected through authenticated links
-- **Statement Data Integration**: Pre-populates forms with consignor statement data from the auction system
+- **Statement Data Integration**: Pre-populates forms with seller statement data from the auction system
 
 ## Setup Instructions
 
@@ -27,12 +27,12 @@ This application implements a secure two-user workflow for collecting payment in
 ## Features
 
 - **Staff Portal**:
-  - Simple interface for entering auction code and consignor ID
-  - Generates secure payment form links that can be copied or emailed directly to consignors
+  - Simple interface for entering auction code and Seller ID
+  - Generates secure payment form links that can be copied or emailed directly to sellers
   - Ability to generate multiple payment form links in succession
 
-- **Consignor Form**:
-  - Displays statement summary with consignor name, auction details, and amount due
+- **Seller Form**:
+  - Displays statement summary with seller name, auction details, and amount due
   - Two payment information options:
     - Upload a voided check image
     - Manually enter bank account details
@@ -76,9 +76,9 @@ This application is designed to be deployed to Netlify for full functionality:
 
 For a full production implementation, you'll need to:
 
-1. Create a server-side API endpoint that accepts auction code and consignor ID
+1. Create a server-side API endpoint that accepts auction code and Seller ID
 2. Implement proper authentication and data retrieval from your database
-3. Return the consignor statement data to populate the form
+3. Return the seller statement data to populate the form
 4. Add server-side validation for all submitted data
 5. Set up secure email notifications for form submissions
 

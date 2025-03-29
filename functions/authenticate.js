@@ -18,8 +18,11 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // We only authenticate the user here. The validity of auctionCode/sellerId
+    // will be handled by the get-seller-data function when it's called
+
     // We'll verify the credentials by attempting to log in to the McLemore Auction admin system
-    // This will be handled by the get-consignor-data function when it's called
+    // This logic is now within the get-seller-data function
     // For now, we'll just generate a token with the username and an expiration time
 
     // Create a token with 24-hour expiration

@@ -1,12 +1,14 @@
-// Netlify Function to retrieve consignor data
+// Netlify Function to retrieve seller data
 const axios = require('axios');
 const cheerio = require('cheerio');
 
 /**
- * Fetches consignor data from the McLemore Auction admin system
+ * Fetches seller data from the McLemore Auction admin system
  * @param {string} auctionCode - The auction code
- * @param {string} consignorId - The consignor ID
- * @returns {Promise<Object>} - The consignor data
+ * @param {string} sellerId - The seller ID
+ * @param {string} username - Admin username
+ * @param {string} password - Admin password
+ * @returns {Promise<Object>} - The seller data
  */
 exports.handler = async function(event, context) {
   // Only allow POST requests
@@ -29,13 +31,14 @@ exports.handler = async function(event, context) {
   }
 
   // Extract parameters from request
-  const { auctionCode, consignorId, username, password } = requestBody;
+  const { auctionCode, sellerId, username, password } = requestBody;
 
   // Validate required parameters
-  if (!auctionCode || !consignorId) {
+  if (!auctionCode || !sellerId) {
+    console.error('Missing required parameters', { auctionCode, sellerId });
     return {
       statusCode: 400,
-      body: JSON.stringify({ error: 'Missing required parameters: auctionCode and consignorId' })
+      body: JSON.stringify({ error: 'Missing required parameters: auctionCode and sellerId' })
     };
   }
   
@@ -48,47 +51,47 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    // Get consignor data
-    const consignorData = await getConsignorData(auctionCode, consignorId, username, password);
+    // Get seller data
+    const sellerData = await getSellerData(auctionCode, sellerId, username, password);
 
     return {
       statusCode: 200,
-      body: JSON.stringify(consignorData)
+      body: JSON.stringify(sellerData)
     };
   } catch (error) {
-    console.error('Error fetching consignor data:', error);
+    console.error('Error fetching seller data:', error);
 
     return {
       statusCode: 500,
-      body: JSON.stringify({ 
-        error: 'Failed to fetch consignor data', 
-        message: error.message 
+      body: JSON.stringify({
+        error: 'Failed to fetch seller data',
+        message: error.message || 'Internal Server Error'
       })
     };
   }
 };
 
 /**
- * Gets consignor data from the McLemore Auction admin system
+ * Gets seller data from the McLemore Auction admin system
  * @param {string} auctionCode - The auction code
- * @param {string} consignorId - The consignor ID (seller ID)
+ * @param {string} sellerId - The seller ID (seller ID)
  * @param {string} username - Admin username
  * @param {string} password - Admin password
- * @returns {Promise<Object>} - The consignor data
+ * @returns {Promise<Object>} - The seller data
  */
-async function getConsignorData(auctionCode, consignorId, username, password) {
+async function getSellerData(auctionCode, sellerId, username, password) {
   try {
-    console.log('Fetching consignor data for auction:', auctionCode, 'seller ID:', consignorId);
+    console.log('Fetching seller data for auction:', auctionCode, 'seller ID:', sellerId);
     
     // Fetch the statement HTML
-    const statementHtml = await fetchStatementHtml(auctionCode, consignorId, username, password);
+    const statementHtml = await fetchStatementHtml(auctionCode, sellerId, username, password);
     
     // Load the HTML into cheerio for parsing
     const $ = cheerio.load(statementHtml);
     
     // Initialize variables to store extracted data
-    let consignorName = '';
-    let consignorEmail = '';
+    let sellerName = '';
+    let sellerEmail = '';
     let auctionTitle = '';
     let statementDate = '';
     let totalDue = '';
@@ -102,54 +105,54 @@ async function getConsignorData(auctionCode, consignorId, username, password) {
     console.log('Full text length:', fullText.length);
     console.log('Text sample:', fullText.substring(0, 500));
     
-    // Extract consignor name using the specific format from the example
-    console.log('Extracting consignor name...');
+    // Extract seller name using the specific format from the example
+    console.log('Extracting seller name...');
     
-    // Pattern: "Seller Number: XX Name"
+    // Pattern: Seller Number: 1234  Seller Name Here
     const sellerPattern = /Seller\s+Number:\s*(\d+)\s+([^\n\r]+?)(?=\s+\d+|\s+Phone|\s+McLemore|$)/i;
     const sellerMatch = fullText.match(sellerPattern);
     
     if (sellerMatch && sellerMatch[2]) {
-      consignorName = sellerMatch[2].trim();
-      console.log('Found consignor name from seller pattern:', consignorName);
+      sellerName = sellerMatch[2].trim();
+      console.log('Found seller name from seller pattern:', sellerName);
     } else {
-      // Fallback to a simpler pattern if the specific one doesn't match
+      // Try simpler pattern: Seller : Name Here or Consignor#: 123 Name Here
       const simpleNamePattern = /(?:Seller|Consignor)\s*(?:Number|#)?\s*:\s*(?:\d+\s+)?([^\n\r]+?)(?=\s+\d+|\s+Phone|\s+McLemore|$)/i;
       const simpleNameMatch = fullText.match(simpleNamePattern);
       
       if (simpleNameMatch && simpleNameMatch[1]) {
-        consignorName = simpleNameMatch[1].trim();
-        console.log('Found consignor name from simple pattern:', consignorName);
+        sellerName = simpleNameMatch[1].trim();
+        console.log('Found seller name from simple pattern:', sellerName);
       } else {
-        // If still not found, use a very generic approach
-        consignorName = `Consignor ${consignorId}`;
-        console.log('Using generic consignor name:', consignorName);
+        // Fallback to generic name if no specific pattern matches
+        sellerName = `Seller ${sellerId}`;
+        console.log('Using generic seller name:', sellerName);
       }
     }
     
-    // Extract consignor email
-    console.log('Extracting consignor email...');
+    // Extract seller email
+    console.log('Extracting seller email...');
     
-    // Pattern: "Email: email@example.com"
+    // Pattern: Email: email@example.com
     const emailPattern = /Email\s*:\s*([\w.-]+@[\w.-]+\.[a-zA-Z]{2,})/i;
     const emailMatch = fullText.match(emailPattern);
     
     if (emailMatch && emailMatch[1]) {
-      consignorEmail = emailMatch[1].trim();
-      console.log('Found consignor email from pattern:', consignorEmail);
+      sellerEmail = emailMatch[1].trim();
+      console.log('Found seller email from pattern:', sellerEmail);
     } else {
-      // Try to find any email address in the text
+      // Fallback: Look for any email address pattern in the text
       const anyEmailPattern = /[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/g;
       const anyEmails = fullText.match(anyEmailPattern);
       
       if (anyEmails && anyEmails.length > 0) {
         // Use the first email found
-        consignorEmail = anyEmails[0];
-        console.log('Found email in text:', consignorEmail);
+        sellerEmail = anyEmails[0];
+        console.log('Found email in text:', sellerEmail);
       } else {
-        // If no email found, construct one from consignor ID
-        consignorEmail = `${consignorId}@mclemoreauction.com`;
-        console.log('Using constructed email:', consignorEmail);
+        // If no email found, construct one from seller ID
+        sellerEmail = `${sellerId}@mclemoreauction.com`;
+        console.log('Using constructed email:', sellerEmail);
       }
     }
     
@@ -207,34 +210,34 @@ async function getConsignorData(auctionCode, consignorId, username, password) {
       }
     }
     
-    // Create the consignor data object
-    const consignorData = {
-      name: consignorName || `Consignor ${consignorId}`,
-      email: consignorEmail || '',
+    // Create the seller data object
+    const sellerData = {
+      name: sellerName || `Seller ${sellerId}`,
+      email: sellerEmail || '',
       auctionTitle: auctionTitle || `Auction #${auctionCode}`,
       statementDate: statementDate || new Date().toLocaleDateString(),
       totalDue: totalDue || '0.00'
     };
     
-    console.log('Successfully extracted consignor data:', JSON.stringify(consignorData));
-    return consignorData;
+    console.log('Successfully extracted seller data:', JSON.stringify(sellerData));
+    return sellerData;
   } catch (error) {
-    console.error('Error in getConsignorData:', error);
-    throw error;
+    console.error('Error in getSellerData:', error);
+    throw new Error(`Failed to get seller data: ${error.message}`);
   }
 }
 
 /**
- * Fetches the statement HTML from the McLemore Auction admin system
+ * Fetches statement HTML using provided credentials
  * @param {string} auctionCode - The auction code
- * @param {string} consignorId - The consignor ID (seller ID)
+ * @param {string} sellerId - The seller ID (seller ID)
  * @param {string} username - Admin username
  * @param {string} password - Admin password
  * @returns {Promise<string>} - The statement HTML
  */
-async function fetchStatementHtml(auctionCode, consignorId, username, password) {
+async function fetchStatementHtml(auctionCode, sellerId, username, password) {
   try {
-    console.log('Fetching statement HTML for auction:', auctionCode, 'seller ID:', consignorId);
+    console.log('Fetching statement HTML for auction:', auctionCode, 'seller ID:', sellerId);
     
     // Validate credentials
     if (!username || !password) {
@@ -261,9 +264,8 @@ async function fetchStatementHtml(auctionCode, consignorId, username, password) 
     console.log('Login response status:', loginResponse.status);
     
     // Step 2: Fetch the statement
-    // Using the correct URL format with sellerid parameter
-    const statementUrl = `https://www.mclemoreauction.com/admin/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`;
-    console.log('Fetching statement from:', statementUrl);
+    const statementUrl = `https://www.mclemoreauction.com/admin/statements/printreport/auction/${auctionCode}/sellerid/${sellerId}`;
+    console.log('Fetching statement URL:', statementUrl);
     
     const statementResponse = await session.get(statementUrl);
     console.log('Statement response status:', statementResponse.status);

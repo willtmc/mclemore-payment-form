@@ -19,24 +19,28 @@
   </script>
 </head>
 <body class="bg-gray-50 min-h-screen">
+  <!-- Include Config First -->
+  <script src="config.js"></script>
+  
   <!-- Immediate script to ensure login form is shown first -->
   <script>
     // Clear any potentially invalid auth data on page load
-    if (localStorage.getItem('authToken')) {
+    if (localStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN)) {
       try {
-        const token = localStorage.getItem('authToken');
-        const tokenData = JSON.parse(atob(token.split('.')[1]));
-        const currentTime = Math.floor(Date.now() / 1000);
+        const token = localStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+        // Simple check without full JWT parsing for this example
+        const tokenData = JSON.parse(atob(token)); // Assuming simple base64 token for example
+        const currentTime = Date.now();
         
         // If token is expired or invalid, clear it
         if (!tokenData.exp || tokenData.exp < currentTime) {
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('currentUser');
+          localStorage.removeItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+          localStorage.removeItem(APP_CONFIG.STORAGE_KEYS.CURRENT_USER);
         }
       } catch (e) {
         // Invalid token format, clear it
-        localStorage.removeItem('authToken');
-        localStorage.removeItem('currentUser');
+        localStorage.removeItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+        localStorage.removeItem(APP_CONFIG.STORAGE_KEYS.CURRENT_USER);
       }
     }
   </script>
@@ -44,7 +48,7 @@
   <div class="max-w-4xl mx-auto p-6 md:p-8 lg:p-10">
     <header class="mb-8">
       <img src="/images/mclemore-logo.png" alt="McLemore Auction Company" class="h-20 md:h-24 lg:h-28 w-auto mb-6" />
-      <h1 class="text-2xl md:text-3xl font-bold text-primary mb-2">Consignor Payment Setup</h1>
+      <h1 class="text-2xl md:text-3xl font-bold text-primary mb-2">Seller Payment Setup</h1>
       <div class="h-1 w-32 bg-secondary mb-6"></div>
     </header>
 
@@ -61,7 +65,7 @@
           </div>
           <div class="ml-3">
             <p class="text-sm text-blue-800">
-              <span class="font-medium">McLemore Staff Only:</span> Please log in to access the consignor payment form generation tool.
+              <span class="font-medium">McLemore Staff Only:</span> Please log in to access the seller payment form generation tool.
             </p>
           </div>
         </div>
@@ -124,10 +128,10 @@
       </div>
     </div>
 
-    <!-- Step 1: Enter Auction Code and Consignor ID (MAC Staff Form) -->
+    <!-- Step 1: Enter Auction Code and Seller ID (MAC Staff Form) -->
     <div id="step-1" class="bg-white shadow-md rounded-lg p-6 md:p-8 hidden">
       <div class="flex justify-between items-center mb-6">
-        <h2 class="text-xl font-semibold text-primary">Generate Consignor Payment Form</h2>
+        <h2 class="text-xl font-semibold text-primary">Generate Seller Payment Form</h2>
         <button 
           id="logout-button" 
           class="text-sm text-gray-600 hover:text-primary focus:outline-none flex items-center"
@@ -149,7 +153,7 @@
           </div>
           <div class="ml-3">
             <p class="text-sm text-blue-800">
-              <span class="font-medium">Staff Portal:</span> Enter the auction code and consignor ID to generate a secure payment form link for the consignor.
+              <span class="font-medium">Staff Portal:</span> Enter the auction code and seller ID to generate a secure payment form link for the seller.
             </p>
           </div>
         </div>
@@ -168,22 +172,22 @@
             class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
             placeholder="e.g., 3005"
           />
-          <p class="text-xs text-gray-500 mt-1">The auction code from the consignor statement.</p>
+          <p class="text-xs text-gray-500 mt-1">The auction code from the seller statement.</p>
         </div>
         
         <div>
-          <label class="block text-gray-700 font-medium mb-2" for="consignorId">
-            Consignor ID <span class="text-red-500">*</span>
+          <label class="block text-gray-700 font-medium mb-2" for="sellerId">
+            Seller ID <span class="text-red-500">*</span>
           </label>
           <input 
             type="text" 
-            id="consignorId"
-            name="consignorId" 
+            id="sellerId"
+            name="sellerId" 
             required 
             class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
             placeholder="e.g., 273"
           />
-          <p class="text-xs text-gray-500 mt-1">The seller/consignor ID number.</p>
+          <p class="text-xs text-gray-500 mt-1">The seller ID number.</p>
         </div>
       </div>
 
@@ -196,7 +200,7 @@
           </div>
           <div class="ml-3">
             <p class="text-sm text-yellow-700">
-              This will generate a secure payment form for the consignor. You can send them the link or email it directly.
+              This will generate a secure payment form for the seller. You can send them the link or email it directly.
             </p>
           </div>
         </div>
@@ -213,7 +217,7 @@
       </div>
     </div>
 
-    <!-- Step 2: Statement Summary and Payment Information (Consignor Form) -->
+    <!-- Step 2: Statement Summary and Payment Information (Seller Form) -->
     <div id="step-2" class="bg-white shadow-md rounded-lg p-6 md:p-8 mt-6 hidden">
       <!-- 
         Netlify form attributes:
@@ -239,11 +243,11 @@
           <label>Don't fill this out if you're human: <input name="bot-field" /></label>
         </p>
 
-        <!-- Hidden fields to store auction and consignor information -->
+        <!-- Hidden fields to store auction and seller information -->
         <input type="hidden" id="form-auctionCode" name="auctionCode" />
-        <input type="hidden" id="form-consignorId" name="consignorId" />
+        <input type="hidden" id="form-sellerId" name="sellerId" />
 
-        <!-- Consignor Welcome Message -->
+        <!-- Seller Welcome Message -->
         <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
           <div class="flex">
             <div class="flex-shrink-0">
@@ -253,7 +257,7 @@
             </div>
             <div class="ml-3">
               <p class="text-sm text-blue-800">
-                <span class="font-medium">Welcome, Consignor:</span> McLemore Auction Company pays by ACH direct deposit. Please review your statement summary below and provide your banking information to receive your auction proceeds.
+                <span class="font-medium">Welcome, Seller:</span> McLemore Auction Company pays by ACH direct deposit. Please review your statement summary below and provide your banking information to receive your auction proceeds.
               </p>
             </div>
           </div>
@@ -271,8 +275,8 @@
             <div class="bg-gray-50 p-4 rounded-md">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p class="text-sm text-gray-500">Consignor Name:</p>
-                  <p class="font-medium text-gray-800" id="consignor-name">Loading...</p>
+                  <p class="text-sm text-gray-500">Seller Name:</p>
+                  <p class="font-medium text-gray-800" id="seller-name">Loading...</p>
                 </div>
                 <div>
                   <p class="text-sm text-gray-500">Auction:</p>
@@ -481,98 +485,74 @@
   </div>
 
   <script>
+    // Ensure config is loaded
+    if (typeof APP_CONFIG === 'undefined') {
+      console.error('APP_CONFIG is not loaded. Make sure config.js is included before this script.');
+      // Optionally, show an error message to the user or halt execution
+    }
+
     // Global variables for authentication
-    let authToken = localStorage.getItem('authToken');
-    let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+    let authToken = localStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+    let currentUser = JSON.parse(localStorage.getItem(APP_CONFIG.STORAGE_KEYS.CURRENT_USER) || 'null');
     
+    // Helper to get element by configured ID
+    function getConfigElement(idKey) {
+      return document.getElementById(APP_CONFIG.ELEMENT_IDS[idKey]);
+    }
+
     // Toggle between payment options
     function togglePaymentOptions(option) {
-      const checkUploadSection = document.getElementById('check-upload-section');
-      const manualEntrySection = document.getElementById('manual-entry-section');
+      const checkUploadSection = getConfigElement('CHECK_UPLOAD_SECTION');
+      const manualEntrySection = getConfigElement('MANUAL_ENTRY_SECTION');
       
+      const checkImageInput = getConfigElement('CHECK_IMAGE_INPUT');
+      const entityNameInput = getConfigElement('ENTITY_NAME_INPUT');
+      const routingNumberInput = getConfigElement('ROUTING_NUMBER_INPUT');
+      const accountNumberInput = getConfigElement('ACCOUNT_NUMBER_INPUT');
+      const accountTypeSelect = getConfigElement('ACCOUNT_TYPE_SELECT');
+
       if (option === 'check') {
         checkUploadSection.classList.remove('hidden');
         manualEntrySection.classList.add('hidden');
         
         // Reset manual entry fields
-        document.getElementById('entityName').required = false;
-        document.getElementById('routingNumber').required = false;
-        document.getElementById('accountNumber').required = false;
-        document.getElementById('accountType').required = false;
+        entityNameInput.required = false;
+        routingNumberInput.required = false;
+        accountNumberInput.required = false;
+        accountTypeSelect.required = false;
         
         // Make check upload required
-        document.getElementById('checkImage').required = true;
+        checkImageInput.required = true;
       } else if (option === 'manual') {
         checkUploadSection.classList.add('hidden');
         manualEntrySection.classList.remove('hidden');
         
         // Reset check upload field
-        document.getElementById('checkImage').required = false;
+        checkImageInput.required = false;
         
         // Make manual entry fields required
-        document.getElementById('entityName').required = true;
-        document.getElementById('routingNumber').required = true;
-        document.getElementById('accountNumber').required = true;
-        document.getElementById('accountType').required = true;
+        entityNameInput.required = true;
+        routingNumberInput.required = true;
+        accountNumberInput.required = true;
+        accountTypeSelect.required = true;
       }
       
-      // Update progress bar after toggling options
-      updateProgressBar();
+      // Update progress bar after toggling options (If progress bar exists)
+      // updateProgressBar(); 
     }
     
-    // Progress bar functionality
-    function updateProgressBar() {
-      const form = document.querySelector('form');
-      const requiredFields = form.querySelectorAll('[required]');
-      const progressBar = document.getElementById('progress-bar');
-      const progressText = document.getElementById('progress-text');
-      
-      let completedFields = 0;
-      
-      requiredFields.forEach(field => {
-        // Check if field is visible (not in a hidden section)
-        const isVisible = !field.closest('.hidden');
-        
-        // For checkboxes and radio buttons
-        if ((field.type === 'checkbox' || field.type === 'radio') && field.checked && isVisible) {
-          completedFields++;
-        }
-        // For other input types
-        else if (field.value && isVisible) {
-          completedFields++;
-        }
-      });
-      
-      // Count visible required fields
-      let visibleRequiredFields = 0;
-      requiredFields.forEach(field => {
-        if (!field.closest('.hidden')) {
-          visibleRequiredFields++;
-        }
-      });
-      
-      // Calculate progress percentage
-      const progress = visibleRequiredFields > 0 ? (completedFields / visibleRequiredFields) * 100 : 0;
-      
-      // Update progress bar
-      if (progressBar && progressText) {
-        progressBar.style.width = `${progress}%`;
-        progressText.textContent = `${Math.round(progress)}%`;
-      }
-    }
+    // Progress bar functionality (If implemented)
+    // function updateProgressBar() { ... }
     
     // Function to generate a unique payment form URL
-    function generatePaymentFormUrl(auctionCode, consignorId) {
-      // Get the current domain and path
-      const baseUrl = window.location.origin;
-      
-      // Generate a secure token for the URL
+    function generatePaymentFormUrl(auctionCode, sellerId) {
+      const baseUrl = window.location.origin + window.location.pathname;
       const timestamp = Date.now();
       const randomString = Math.random().toString(36).substring(2, 15);
-      const token = btoa(`${auctionCode}:${consignorId}:${timestamp}:${randomString}`);
-      
-      // Create the URL with parameters
-      return `${baseUrl}?auction=${encodeURIComponent(auctionCode)}&consignor=${encodeURIComponent(consignorId)}&token=${encodeURIComponent(token)}`;
+      const token = btoa(`${auctionCode}:${sellerId}:${timestamp}:${randomString}`);
+      console.log('Generated Token:', token);
+      // Use configured query param names
+      return `${baseUrl}?${APP_CONFIG.URL_PARAMS.AUCTION}=${encodeURIComponent(auctionCode)}&${APP_CONFIG.URL_PARAMS.SELLER}=${encodeURIComponent(sellerId)}&${APP_CONFIG.URL_PARAMS.TOKEN}=${encodeURIComponent(token)}`;
     }
     
     // Function to copy payment URL to clipboard
@@ -584,92 +564,92 @@
     
     // Function to handle login
     function handleLogin() {
-      // Get username and password
-      const username = document.getElementById('username').value.trim();
-      const password = document.getElementById('password').value.trim();
+      const usernameInput = getConfigElement('USERNAME_INPUT');
+      const passwordInput = getConfigElement('PASSWORD_INPUT');
+      const loginErrorDiv = getConfigElement('LOGIN_ERROR');
+      const errorMessageP = getConfigElement('ERROR_MESSAGE');
+      const loginButton = getConfigElement('LOGIN_BUTTON');
+
+      const username = usernameInput.value.trim();
+      const password = passwordInput.value.trim();
       
-      // Validate inputs
       if (!username || !password) {
-        document.getElementById('login-error').classList.remove('hidden');
-        document.getElementById('error-message').textContent = 'Please enter both username and password.';
+        loginErrorDiv.classList.remove('hidden');
+        errorMessageP.textContent = 'Please enter both username and password.';
         return;
       }
       
-      // Show loading state
-      document.getElementById('login-button').disabled = true;
-      document.getElementById('login-button').textContent = 'Logging in...';
+      loginButton.disabled = true;
+      loginButton.textContent = 'Logging in...';
+      loginErrorDiv.classList.add('hidden'); // Hide previous errors
       
-      // Call the authenticate function
-      fetch('/.netlify/functions/authenticate', {
+      fetch(APP_CONFIG.API_PATHS.AUTHENTICATE, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       })
       .then(response => {
         if (!response.ok) {
-          throw new Error('Authentication failed');
+          return response.json().then(err => { throw new Error(err.message || 'Authentication failed'); });
         }
         return response.json();
       })
       .then(data => {
-        // Store authentication data
         authToken = data.token;
-        currentUser = { username: data.username, password: password };
+        // Storing plain password temporarily - review security implications
+        currentUser = { username: data.username, password: password }; 
         
-        // Save to localStorage
-        localStorage.setItem('authToken', authToken);
-        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        localStorage.setItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN, authToken);
+        localStorage.setItem(APP_CONFIG.STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser));
         
-        // Hide login form, show staff form
-        document.getElementById('login-form').classList.add('hidden');
-        document.getElementById('step-1').classList.remove('hidden');
+        getConfigElement('LOGIN_FORM').classList.add('hidden');
+        getConfigElement('STAFF_FORM_STEP').classList.remove('hidden');
         
-        // Update welcome message
-        const welcomeMessage = document.querySelector('#step-1 .text-blue-800');
+        // Update welcome message (assuming structure remains similar)
+        const welcomeMessage = document.querySelector(`#${APP_CONFIG.ELEMENT_IDS.STAFF_FORM_STEP} .text-blue-800`);
         if (welcomeMessage) {
-          welcomeMessage.textContent = `Welcome, ${data.username}. Enter the auction code and consignor ID to generate a payment form link.`;
+          welcomeMessage.textContent = `Welcome, ${data.username}. Enter the auction code and seller ID to generate a payment form link.`;
         }
       })
       .catch(error => {
         console.error('Login error:', error);
-        document.getElementById('login-error').classList.remove('hidden');
-        document.getElementById('error-message').textContent = 'Invalid username or password. Please try again.';
-        
-        // Reset button state
-        document.getElementById('login-button').disabled = false;
-        document.getElementById('login-button').textContent = 'Log In';
+        loginErrorDiv.classList.remove('hidden');
+        errorMessageP.textContent = error.message || 'Invalid username or password. Please try again.';
+      })
+      .finally(() => {
+         // Reset button state only if login failed
+         if (!authToken) {
+             loginButton.disabled = false;
+             loginButton.textContent = 'Log In';
+         }
       });
     }
     
     // Function to handle logout
     function handleLogout() {
-      // Clear authentication data
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('currentUser');
+      localStorage.removeItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+      localStorage.removeItem(APP_CONFIG.STORAGE_KEYS.CURRENT_USER);
       authToken = null;
       currentUser = null;
       
-      // Show login form, hide staff form
-      document.getElementById('login-form').classList.remove('hidden');
-      document.getElementById('step-1').classList.add('hidden');
-      document.getElementById('step-2').classList.add('hidden');
+      getConfigElement('LOGIN_FORM').classList.remove('hidden');
+      getConfigElement('STAFF_FORM_STEP').classList.add('hidden');
+      getConfigElement('PAYMENT_FORM_STEP').classList.add('hidden');
       
-      // Reset form fields
-      document.getElementById('username').value = '';
-      document.getElementById('password').value = '';
-      document.getElementById('login-error').classList.add('hidden');
+      // Reset login form fields
+      getConfigElement('USERNAME_INPUT').value = '';
+      getConfigElement('PASSWORD_INPUT').value = '';
+      getConfigElement('LOGIN_ERROR').classList.add('hidden');
     }
     
     // Function to reset the form
     function resetForm() {
-      // Reset the staff form to its initial state
-      document.getElementById('step-1').innerHTML = `
+      const staffFormStepDiv = getConfigElement('STAFF_FORM_STEP');
+      staffFormStepDiv.innerHTML = `
         <div class="flex justify-between items-center mb-6">
-          <h2 class="text-xl font-semibold text-primary">Generate Consignor Payment Form</h2>
+          <h2 class="text-xl font-semibold text-primary">Generate Seller Payment Form</h2>
           <button 
-            id="logout-button" 
+            id="${APP_CONFIG.ELEMENT_IDS.LOGOUT_BUTTON}" 
             class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 focus:outline-none"
             onclick="handleLogout()"
           >
@@ -686,7 +666,7 @@
             </div>
             <div class="ml-3">
               <p class="text-sm text-blue-800">
-                Welcome, ${currentUser ? currentUser.username : ''}. Enter the auction code and consignor ID to generate a payment form link.
+                Welcome, ${currentUser ? currentUser.username : ''}. Enter the auction code and seller ID to generate a payment form link.
               </p>
             </div>
           </div>
@@ -694,12 +674,12 @@
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div>
-            <label class="block text-gray-700 font-medium mb-2" for="auctionCode">
+            <label class="block text-gray-700 font-medium mb-2" for="${APP_CONFIG.ELEMENT_IDS.AUCTION_CODE_INPUT}">
               Auction Code <span class="text-red-500">*</span>
             </label>
             <input 
               type="text" 
-              id="auctionCode" 
+              id="${APP_CONFIG.ELEMENT_IDS.AUCTION_CODE_INPUT}" 
               required 
               class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
               placeholder="Enter auction code"
@@ -707,15 +687,15 @@
           </div>
           
           <div>
-            <label class="block text-gray-700 font-medium mb-2" for="consignorId">
-              Consignor ID <span class="text-red-500">*</span>
+            <label class="block text-gray-700 font-medium mb-2" for="${APP_CONFIG.ELEMENT_IDS.SELLER_ID_INPUT}">
+              Seller ID <span class="text-red-500">*</span>
             </label>
             <input 
               type="text" 
-              id="consignorId" 
+              id="${APP_CONFIG.ELEMENT_IDS.SELLER_ID_INPUT}" 
               required 
               class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
-              placeholder="Enter consignor ID"
+              placeholder="Enter seller ID"
             />
           </div>
         </div>
@@ -723,7 +703,7 @@
         <div class="flex justify-end">
           <button 
             type="button" 
-            id="retrieveStatement" 
+            id="${APP_CONFIG.ELEMENT_IDS.RETRIEVE_STATEMENT_BUTTON}" 
             class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
           >
             Generate Payment Form
@@ -732,47 +712,19 @@
       `;
       
       // Re-add event listener to the new button
-      document.getElementById('retrieveStatement').addEventListener('click', function() {
-        const auctionCode = document.getElementById('auctionCode').value.trim();
-        const consignorId = document.getElementById('consignorId').value.trim();
-        
-        if (!auctionCode || !consignorId) {
-          alert('Please enter both Auction Code and Consignor ID.');
-          return;
-        }
-        
-        // Validate input formats
-        if (!/^\d+$/.test(auctionCode)) {
-          alert('Auction Code should contain only numbers.');
-          return;
-        }
-        
-        if (!/^\d+$/.test(consignorId)) {
-          alert('Consignor ID should contain only numbers.');
-          return;
-        }
-        
-        // Show loading state
-        document.getElementById('retrieveStatement').disabled = true;
-        document.getElementById('retrieveStatement').textContent = 'Loading...';
-        
-        // Fetch consignor data from API
-        fetchConsignorData(auctionCode, consignorId);
-      });
+      getConfigElement('RETRIEVE_STATEMENT_BUTTON').addEventListener('click', handleGenerateClick);
     }
     
     // Function to send payment link via email
     function sendPaymentLink(paymentFormUrl, email, name, auctionTitle) {
-      // Show loading state
-      const sendButton = event.target;
+      // ... (Get button element)
+      const sendButton = event.target; // Assumes called from button click
       sendButton.disabled = true;
       sendButton.textContent = 'Sending...';
       
-      // Get the username from currentUser
       const username = currentUser ? currentUser.username : 'Unknown';
       
-      // Call the send-payment-link function
-      fetch('/.netlify/functions/send-payment-link', {
+      fetch(APP_CONFIG.API_PATHS.SEND_PAYMENT_LINK, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -780,8 +732,8 @@
         },
         body: JSON.stringify({
           paymentFormUrl: paymentFormUrl,
-          consignorEmail: email,
-          consignorName: name,
+          sellerEmail: email,
+          sellerName: name,
           auctionTitle: auctionTitle,
           sentBy: username
         })
@@ -794,7 +746,7 @@
       })
       .then(data => {
         // Show success message
-        document.getElementById('step-1').innerHTML = `
+        getConfigElement('STAFF_FORM_STEP').innerHTML = `
           <div class="bg-white p-6 rounded-lg">
             <div class="text-center mb-6">
               <div class="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
@@ -834,22 +786,41 @@
             </div>
           </div>
         `;
-        
-        return data;
       })
       .catch(error => {
         console.error('Error sending payment link:', error);
         alert('Failed to send payment link. Please try again.');
-        
-        // Reset button state
         sendButton.disabled = false;
         sendButton.textContent = 'Send Payment Link';
       });
     }
     
-    // Function to fetch consignor data
-    function fetchConsignorData(auctionCode, consignorId) {
-      // Get the username and password from the current user session
+    // Shared logic for generate/retrieve button click
+    function handleGenerateClick() {
+      const auctionCodeInput = getConfigElement('AUCTION_CODE_INPUT');
+      const sellerIdInput = getConfigElement('SELLER_ID_INPUT');
+      const auctionCode = auctionCodeInput.value.trim();
+      const sellerId = sellerIdInput.value.trim();
+      
+      if (!auctionCode || !sellerId) {
+        alert('Please enter both Auction Code and Seller ID.');
+        return;
+      }
+      if (!/^\d+$/.test(auctionCode)) {
+        alert('Auction Code should contain only numbers.');
+        return;
+      }
+      if (!/^\d+$/.test(sellerId)) {
+        alert('Seller ID should contain only numbers.');
+        return;
+      }
+      
+      // Fetch seller data from API
+      fetchSellerData(auctionCode, sellerId);
+    }
+    
+    // Function to fetch seller data
+    function fetchSellerData(auctionCode, sellerId) {
       if (!authToken || !currentUser) {
         alert('Your session has expired. Please log in again.');
         handleLogout();
@@ -857,17 +828,16 @@
       }
       
       const username = currentUser.username;
-      const password = currentUser.password || '';
+      // Ensure password is included if needed by your API logic
+      const password = currentUser.password || ''; 
       
-      // Show loading state
-      const retrieveButton = document.getElementById('retrieveStatement');
+      const retrieveButton = getConfigElement('RETRIEVE_STATEMENT_BUTTON'); // Button ID might change after resetForm
       if (retrieveButton) {
         retrieveButton.disabled = true;
-        retrieveButton.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Retrieving Data...';
+        retrieveButton.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Retrieving Data...';
       }
       
-      // Call the get-consignor-data function with credentials
-      fetch('/.netlify/functions/get-consignor-data', {
+      fetch(APP_CONFIG.API_PATHS.GET_SELLER_DATA, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -875,27 +845,26 @@
         },
         body: JSON.stringify({
           auctionCode,
-          consignorId,
+          sellerId,
           username,
-          password
+          password // Include password if your Netlify function requires it for scraping
         })
       })
       .then(response => {
         if (!response.ok) {
           return response.json().then(errorData => {
-            throw new Error(errorData.message || 'Failed to retrieve consignor data');
+            throw new Error(errorData.message || 'Failed to retrieve seller data');
           });
         }
         return response.json();
       })
       .then(data => {
-        // Generate a unique payment form URL
-        const paymentFormUrl = generatePaymentFormUrl(auctionCode, consignorId);
+        const paymentFormUrl = generatePaymentFormUrl(auctionCode, sellerId);
         
-        // Show confirmation dialog with consignor details
-        document.getElementById('step-1').innerHTML = `
+        // Show confirmation dialog
+        getConfigElement('STAFF_FORM_STEP').innerHTML = `
           <div class="bg-white p-6 rounded-lg">
-            <h2 class="text-xl font-semibold text-primary mb-6">Confirm Consignor Details</h2>
+            <h2 class="text-xl font-semibold text-primary mb-6">Confirm Seller Details</h2>
             
             <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
               <div class="flex">
@@ -906,7 +875,7 @@
                 </div>
                 <div class="ml-3">
                   <p class="text-sm text-blue-800">
-                    <span class="font-medium">Please verify:</span> The following information will be used to generate a payment form link for the consignor. The link will be sent directly to the consignor's email address.
+                    <span class="font-medium">Please verify:</span> The following information will be used to generate a payment form link for the seller. The link will be sent directly to the seller's email address.
                   </p>
                 </div>
               </div>
@@ -915,11 +884,11 @@
             <div class="bg-gray-50 p-4 rounded-md mb-6">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <p class="text-sm text-gray-500">Consignor Name:</p>
+                  <p class="text-sm text-gray-500">Seller Name:</p>
                   <p class="font-medium text-gray-800">${data.name}</p>
                 </div>
                 <div>
-                  <p class="text-sm text-gray-500">Consignor Email:</p>
+                  <p class="text-sm text-gray-500">Seller Email:</p>
                   <p class="font-medium text-gray-800">${data.email || 'Not available'}</p>
                 </div>
                 <div>
@@ -939,8 +908,8 @@
                   <p class="font-medium text-gray-800">${auctionCode}</p>
                 </div>
                 <div>
-                  <p class="text-sm text-gray-500">Consignor ID:</p>
-                  <p class="font-medium text-gray-800">${consignorId}</p>
+                  <p class="text-sm text-gray-500">Seller ID:</p>
+                  <p class="font-medium text-gray-800">${sellerId}</p>
                 </div>
                 <div>
                   <p class="text-sm text-gray-500">Retrieved By:</p>
@@ -964,39 +933,35 @@
             </div>
           </div>
         `;
-        
-        return data;
       })
       .catch(error => {
-        console.error('Error fetching consignor data:', error);
-        
-        // Show error message
-        const errorMessage = error.message || 'Failed to retrieve consignor data. Please try again.';
+        console.error('Error fetching seller data:', error);
+        const errorMessage = error.message || 'Failed to retrieve seller data. Please try again.';
         alert(errorMessage);
-        
-        // Reset button state
-        if (retrieveButton) {
-          retrieveButton.disabled = false;
-          retrieveButton.textContent = 'Generate Payment Form';
+        // Reset button state only if it exists (might have been replaced by confirmation screen)
+        if (retrieveButton) { 
+            retrieveButton.disabled = false;
+            retrieveButton.textContent = 'Generate Payment Form';
+        } else {
+            // If confirmation screen was shown then failed, offer to go back?
+            // Or maybe just reset the whole form.
+            resetForm(); 
         }
-        
-        return Promise.reject(error);
       });
     }
     
-    // Function to fetch statement data for consignor form
-    function fetchStatementData(auctionCode, consignorId) {
-      // Show loading state in the statement details section
-      document.getElementById('consignor-name').textContent = 'Loading...';
-      document.getElementById('auction-title').textContent = 'Loading...';
-      document.getElementById('statement-date').textContent = 'Loading...';
-      document.getElementById('total-due').textContent = 'Loading...';
+    // Function to fetch statement data for seller form
+    function fetchStatementData(auctionCode, sellerId) {
+      console.log('Fetching statement data for seller form:', auctionCode, sellerId);
+      getConfigElement('SELLER_NAME_DISPLAY').textContent = 'Loading...';
+      getConfigElement('AUCTION_TITLE_DISPLAY').textContent = 'Loading...';
+      getConfigElement('STATEMENT_DATE_DISPLAY').textContent = 'Loading...';
+      getConfigElement('TOTAL_DUE_DISPLAY').textContent = 'Loading...';
       
-      // For consignor access via URL token, we don't need authentication
-      // This is a separate endpoint that doesn't require MAC staff credentials
-      fetch(`/.netlify/functions/get-consignor-data?auctionCode=${auctionCode}&consignorId=${consignorId}`, {
-        method: 'GET'
-      })
+      // Construct URL using config path and query parameters
+      const url = `${APP_CONFIG.API_PATHS.GET_SELLER_DATA}?auctionCode=${encodeURIComponent(auctionCode)}&sellerId=${encodeURIComponent(sellerId)}`;
+      
+      fetch(url, { method: 'GET' }) // Should this be POST matching the function? Check get-seller-data.js handler
       .then(response => {
         if (!response.ok) {
           throw new Error('Failed to retrieve statement data');
@@ -1004,137 +969,126 @@
         return response.json();
       })
       .then(data => {
-        // Populate statement details with real data
-        document.getElementById('consignor-name').textContent = data.name;
-        document.getElementById('auction-title').textContent = data.auctionTitle;
-        document.getElementById('statement-date').textContent = data.statementDate;
-        document.getElementById('total-due').textContent = data.totalDue;
+        console.log('Statement data received:', data);
+        getConfigElement('SELLER_NAME_DISPLAY').textContent = data.name;
+        getConfigElement('AUCTION_TITLE_DISPLAY').textContent = data.auctionTitle;
+        getConfigElement('STATEMENT_DATE_DISPLAY').textContent = data.statementDate;
+        getConfigElement('TOTAL_DUE_DISPLAY').textContent = `$${data.totalDue}`; // Added $ sign
       })
       .catch(error => {
         console.error('Error fetching statement data:', error);
-        document.getElementById('consignor-name').textContent = 'Error loading data';
-        document.getElementById('auction-title').textContent = 'Error loading data';
-        document.getElementById('statement-date').textContent = 'Error loading data';
-        document.getElementById('total-due').textContent = 'Error loading data';
-        
-        // Show error message to user
+        getConfigElement('SELLER_NAME_DISPLAY').textContent = 'Error loading data';
+        getConfigElement('AUCTION_TITLE_DISPLAY').textContent = 'Error loading data';
+        getConfigElement('STATEMENT_DATE_DISPLAY').textContent = 'Error loading data';
+        getConfigElement('TOTAL_DUE_DISPLAY').textContent = 'Error loading data';
         alert('Failed to load statement data. Please contact McLemore Auction Company for assistance.');
       });
     }
     
-    // Add event listeners to all form fields
+    // Add event listeners to all relevant form fields (using config IDs)
     document.addEventListener('DOMContentLoaded', function() {
-      // Force hide all sections except login by default
-      document.getElementById('step-1').classList.add('hidden');
-      document.getElementById('step-2').classList.add('hidden');
-      document.getElementById('login-form').classList.remove('hidden');
+      // ... (Initial show/hide logic based on auth/URL params) ...
+      const loginForm = getConfigElement('LOGIN_FORM');
+      const staffForm = getConfigElement('STAFF_FORM_STEP');
+      const paymentForm = getConfigElement('PAYMENT_FORM_STEP');
+
+      loginForm.classList.remove('hidden');
+      staffForm.classList.add('hidden');
+      paymentForm.classList.add('hidden');
       
-      // Check if user is already authenticated
+      // Check auth
       if (authToken && currentUser) {
-        // Verify token validity (check if expired)
         try {
-          const tokenData = JSON.parse(atob(authToken.split('.')[1]));
-          const currentTime = Math.floor(Date.now() / 1000);
-          
-          // If token is expired, clear it and show login
-          if (!tokenData.exp || tokenData.exp < currentTime) {
-            console.log('Token expired or invalid, showing login');
-            localStorage.removeItem('authToken');
-            localStorage.removeItem('currentUser');
-            authToken = null;
-            currentUser = null;
-          } else {
-            // Valid token, show the staff form
-            console.log('Valid token found, showing staff form');
-            document.getElementById('login-form').classList.add('hidden');
-            document.getElementById('step-1').classList.remove('hidden');
-          }
+            // Basic token expiry check (as in header script)
+            const token = localStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
+            const tokenData = JSON.parse(atob(token));
+            if (!tokenData.exp || tokenData.exp < Date.now()) {
+                handleLogout(); // Force logout if expired
+            } else {
+                loginForm.classList.add('hidden');
+                staffForm.classList.remove('hidden');
+            }
         } catch (e) {
-          // Invalid token format, clear it and show login
-          console.error('Invalid token format', e);
-          localStorage.removeItem('authToken');
-          localStorage.removeItem('currentUser');
-          authToken = null;
-          currentUser = null;
+            handleLogout(); // Force logout if invalid token
         }
       }
       
-      // Check if there are URL parameters for auction and consignor
+      // Check URL params
       const urlParams = new URLSearchParams(window.location.search);
-      const auctionCode = urlParams.get('auction');
-      const consignorId = urlParams.get('consignor');
-      const token = urlParams.get('token');
+      const auctionCodeParam = urlParams.get(APP_CONFIG.URL_PARAMS.AUCTION);
+      const sellerIdParam = urlParams.get(APP_CONFIG.URL_PARAMS.SELLER);
+      const tokenParam = urlParams.get(APP_CONFIG.URL_PARAMS.TOKEN);
       
-      // If URL parameters exist, show the consignor form directly
-      if (auctionCode && consignorId && token) {
-        // Populate hidden form fields
-        document.getElementById('form-auctionCode').value = auctionCode;
-        document.getElementById('form-consignorId').value = consignorId;
+      if (auctionCodeParam && sellerIdParam && tokenParam) {
+        // Validate tokenParam server-side first (TODO)
+        console.log('Detected seller form URL parameters');
+        loginForm.classList.add('hidden');
+        staffForm.classList.add('hidden');
+        paymentForm.classList.remove('hidden');
         
-        // Fetch statement data using the parameters
-        fetchStatementData(auctionCode, consignorId);
+        getConfigElement('FORM_AUCTION_CODE_HIDDEN').value = auctionCodeParam;
+        getConfigElement('FORM_SELLER_ID_HIDDEN').value = sellerIdParam;
         
-        // Hide login and step 1, show step 2
-        document.getElementById('login-form').classList.add('hidden');
-        document.getElementById('step-1').classList.add('hidden');
-        document.getElementById('step-2').classList.remove('hidden');
-      }
+        fetchStatementData(auctionCodeParam, sellerIdParam);
+      } 
       
-      // Handle form field events for progress tracking
-      const form = document.querySelector('form');
-      if (form) {
-        const formFields = form.querySelectorAll('input, select, textarea');
-        
-        formFields.forEach(field => {
-          field.addEventListener('input', updateProgressBar);
-          field.addEventListener('change', updateProgressBar);
+      // Add event listeners using config IDs
+      const passwordInput = getConfigElement('PASSWORD_INPUT');
+      if (passwordInput) {
+        passwordInput.addEventListener('keypress', function(event) {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            handleLogin();
+          }
         });
-        
-        // Initial progress calculation
-        updateProgressBar();
       }
       
-      // Add event listener to logout button
-      const logoutButton = document.getElementById('logout-button');
+      const loginButton = getConfigElement('LOGIN_BUTTON');
+      if (loginButton) {
+          loginButton.addEventListener('click', handleLogin); // Ensure this wasn't missed
+      }
+
+      const logoutButton = getConfigElement('LOGOUT_BUTTON');
       if (logoutButton) {
         logoutButton.addEventListener('click', handleLogout);
       }
       
-      // Add event listener to retrieve statement button
-      const retrieveButton = document.getElementById('retrieveStatement');
+      const retrieveButton = getConfigElement('RETRIEVE_STATEMENT_BUTTON');
       if (retrieveButton) {
-        retrieveButton.addEventListener('click', function() {
-          const auctionCode = document.getElementById('auctionCode').value.trim();
-          const consignorId = document.getElementById('consignorId').value.trim();
-          
-          if (!auctionCode || !consignorId) {
-            alert('Please enter both Auction Code and Consignor ID.');
-            return;
-          }
-          
-          // Validate input formats
-          if (!/^\d+$/.test(auctionCode)) {
-            alert('Auction Code should contain only numbers.');
-            return;
-          }
-          
-          if (!/^\d+$/.test(consignorId)) {
-            alert('Consignor ID should contain only numbers.');
-            return;
-          }
-          
-          // Fetch consignor data from API
-          fetchConsignorData(auctionCode, consignorId);
-        });
+        retrieveButton.addEventListener('click', handleGenerateClick);
       }
       
-      // Add event listener for Enter key on login form
-      document.getElementById('password').addEventListener('keypress', function(event) {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          handleLogin();
-        }
-      });
+      // Payment option radio buttons
+      const optionCheckRadio = getConfigElement('OPTION_CHECK_RADIO');
+      const optionManualRadio = getConfigElement('OPTION_MANUAL_RADIO');
+      if (optionCheckRadio) {
+          optionCheckRadio.addEventListener('click', () => togglePaymentOptions('check'));
+      }
+      if (optionManualRadio) {
+          optionManualRadio.addEventListener('click', () => togglePaymentOptions('manual'));
+      }
+
+      // Form submission logic (for Netlify)
+      const paymentFormElement = getConfigElement('PAYMENT_FORM');
+      if (paymentFormElement) {
+          paymentFormElement.setAttribute('name', APP_CONFIG.FORM_ATTRS.PAYMENT_FORM_NAME);
+          paymentFormElement.setAttribute('action', APP_CONFIG.FORM_ATTRS.SUCCESS_PAGE_PATH);
+          // Update hidden form-name input as well
+          const hiddenFormName = paymentFormElement.querySelector('input[name="form-name"]');
+          if (hiddenFormName) {
+              hiddenFormName.value = APP_CONFIG.FORM_ATTRS.PAYMENT_FORM_NAME;
+          }
+      }
+
+      // Add listeners for progress bar if implemented
+      // const formFields = paymentFormElement?.querySelectorAll('input, select, textarea');
+      // if (formFields) {
+      //     formFields.forEach(field => {
+      //         field.addEventListener('input', updateProgressBar);
+      //         field.addEventListener('change', updateProgressBar);
+      //     });
+      //     updateProgressBar(); // Initial calculation
+      // }
     });
   </script>
 </body>

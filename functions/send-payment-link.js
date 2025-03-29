@@ -29,9 +29,9 @@ exports.handler = async (event, context) => {
     }
 
     // Parse the request body
-    const { consignorName, consignorEmail, paymentFormUrl, auctionTitle } = JSON.parse(event.body);
+    const { sellerName, sellerEmail, paymentFormUrl, auctionTitle } = JSON.parse(event.body);
 
-    if (!consignorName || !consignorEmail || !paymentFormUrl) {
+    if (!sellerName || !sellerEmail || !paymentFormUrl) {
       return {
         statusCode: 400,
         body: JSON.stringify({ message: 'Missing required parameters' })
@@ -40,14 +40,14 @@ exports.handler = async (event, context) => {
 
     // Send the email using nodemailer
     try {
-      const emailSent = await sendEmail(consignorName, consignorEmail, paymentFormUrl, auctionTitle);
+      const emailSent = await sendEmail(sellerName, sellerEmail, paymentFormUrl, auctionTitle);
       
       if (emailSent) {
         return {
           statusCode: 200,
           body: JSON.stringify({ 
             message: 'Payment link sent successfully',
-            recipient: consignorEmail 
+            recipient: sellerEmail 
           })
         };
       } else {
@@ -73,13 +73,13 @@ exports.handler = async (event, context) => {
 };
 
 // This function sends an email using nodemailer
-async function sendEmail(consignorName, consignorEmail, paymentFormUrl, auctionTitle) {
-  console.log(`Sending email to ${consignorEmail}`);
+async function sendEmail(sellerName, sellerEmail, paymentFormUrl, auctionTitle) {
+  console.log(`Sending email to ${sellerEmail}`);
   
   // Log the parameters for debugging
   console.log('Email parameters:', {
-    consignorName,
-    consignorEmail,
+    sellerName,
+    sellerEmail,
     paymentFormUrl,
     auctionTitle
   });
@@ -118,14 +118,14 @@ async function sendEmail(consignorName, consignorEmail, paymentFormUrl, auctionT
 
   const mailOptions = {
     from: `"McLemore Auction Payment" <${process.env.EMAIL_USER}>`,
-    to: consignorEmail,
+    to: sellerEmail,
     replyTo: process.env.EMAIL_USER,
-    subject: 'McLemore Auction Payment Form',
+    subject: `Secure Payment Link for Auction: ${auctionTitle || 'McLemore Auction'} - ACTION REQUIRED`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <img src="https://mclemore-payment-form.netlify.app/images/mclemore-logo.png" alt="McLemore Auction Company" style="max-width: 200px; margin-bottom: 20px;">
-        <h2 style="color: #5D1916;">Payment Information Request</h2>
-        <p>Dear ${consignorName},</p>
+        <h2 style="color: #5D1916;">McLemore Auction Company - Secure Payment Information Request</h2>
+        <p>Dear ${sellerName},</p>
         <p>Thank you for consigning with McLemore Auction Company. To process your payment for auction proceeds, please use the secure link below to submit your banking information for ACH direct deposit.</p>
         <p><a href="${paymentFormUrl}" style="display: inline-block; background-color: #5D1916; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px;">Submit Payment Information</a></p>
         <p>If the button above doesn't work, you can copy and paste this link into your browser:</p>
