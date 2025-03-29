@@ -616,7 +616,7 @@
       .then(data => {
         // Store authentication data
         authToken = data.token;
-        currentUser = { username: data.username };
+        currentUser = { username: data.username, password: password };
         
         // Save to localStorage
         localStorage.setItem('authToken', authToken);
@@ -857,7 +857,7 @@
       }
       
       const username = currentUser.username;
-      const password = document.getElementById('password').value.trim();
+      const password = currentUser.password || '';
       
       // Show loading state
       const retrieveButton = document.getElementById('retrieveStatement');
