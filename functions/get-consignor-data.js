@@ -358,10 +358,10 @@ async function getConsignorData(event, context) {
       }
     }
     
-    // If email not found in HTML, use willtmc@yahoo.com as a fallback for testing
+    // If email not found in HTML, try to construct from consignor ID
     if (!consignorEmail && consignorId) {
-      consignorEmail = 'willtmc@yahoo.com'; // Use Yahoo email for testing
-      console.log(`Using Yahoo email for testing: ${consignorEmail}`);
+      consignorEmail = `${consignorId}@mclemoreauction.com`;
+      console.log(`Generated email from consignor ID: ${consignorEmail}`);
     }
     
     // Extract auction title
