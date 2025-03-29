@@ -3,6 +3,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs'); // For debugging file writes
 const path = require('path');
+const querystring = require('querystring');
 
 // Base URL for the McLemore Auction admin system
 const BASE_URL = 'https://www.mclemoreauction.com';
@@ -17,7 +18,15 @@ const axiosInstance = axios.create({
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.5',
-  }
+    'Content-Type': 'application/x-www-form-urlencoded'
+  },
+  // Use transformRequest to ensure data is properly formatted as form data
+  transformRequest: [(data, headers) => {
+    if (data && headers['Content-Type'] === 'application/x-www-form-urlencoded') {
+      return querystring.stringify(data);
+    }
+    return data;
+  }]
 });
 
 // Helper function to save debug HTML in development only
@@ -94,12 +103,16 @@ async function getConsignorData(event, context) {
     
     // Step 1: Get login page first
     console.log('Step 1: Fetching login page...');
-    const loginPageUrl = `${BASE_URL}/login`;
+    const loginPageUrl = `${BASE_URL}/admin/login`;
     const loginPageResponse = await axiosInstance.get(loginPageUrl);
     console.log(`Login page status: ${loginPageResponse.status}`);
     
     // Save login page HTML for debugging
     saveDebugHTML('login-page.html', loginPageResponse.data);
+    
+    // Extract any CSRF token or hidden fields from the login form if needed
+    const loginPage$ = cheerio.load(loginPageResponse.data);
+    const csrfToken = loginPage$('input[name="csrf_token"]').val() || '';
     
     // Step 2: Check cookies
     console.log('Step 2: Checking cookies...');
@@ -107,17 +120,17 @@ async function getConsignorData(event, context) {
     console.log(`Cookies check status: ${cookiesResponse.status}`);
     console.log('Cookies:', JSON.stringify(cookiesResponse.data));
     
-    // Step 3: Get session
+    // Step 3: Getting session
     console.log('Step 3: Getting session...');
     const sessionUrl = `${BASE_URL}/api/getsession`;
     const sessionResponse = await axiosInstance.get(sessionUrl);
     console.log(`Session response status: ${sessionResponse.status}`);
     console.log('Session data:', JSON.stringify(sessionResponse.data));
     
-    // Step 4: Set request URL
+    // Step 4: Setting request URL
     console.log('Step 4: Setting request URL...');
     const setRequestUrlData = {
-      url: BASE_URL + '/'
+      url: BASE_URL + '/admin/'
     };
     const setRequestUrlResponse = await axiosInstance.post(
       `${BASE_URL}/api/setrequesturl`,
@@ -127,34 +140,44 @@ async function getConsignorData(event, context) {
     
     // Step 5: Perform login
     console.log('Step 5: Attempting login...');
-    const loginUrl = `${BASE_URL}/api/ajaxlogin`;
+    const loginUrl = `${BASE_URL}/admin/login/process`;
     const loginData = {
-      user_name: username,
+      email: username,
       password: password,
-      autologin: ''
+      csrf_token: csrfToken
     };
     
-    // Make the login request with allow_redirects=False like in Python
+    // Make the login request
     const loginResponse = await axiosInstance.post(loginUrl, loginData, {
       maxRedirects: 0,
-      validateStatus: status => status >= 200 && status < 400
+      validateStatus: status => status >= 200 && status < 400,
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Origin': BASE_URL,
+        'Referer': `${BASE_URL}/admin/login`
+      }
     });
     console.log(`Login response status: ${loginResponse.status}`);
-    console.log('Login response data:', JSON.stringify(loginResponse.data));
     
-    // Check if login was successful
-    const responseData = loginResponse.data;
-    
-    // Check for success in either the response status or cookies like in Python
-    if (responseData.status !== 'success' && !loginResponse.headers['set-cookie']?.some(c => c.includes('sessiontoken'))) {
-      throw new Error(`Login failed: ${responseData.msg || 'Unknown error'}`);
+    // Check if login was successful - look for redirect to dashboard
+    if (loginResponse.status === 302 && loginResponse.headers.location && 
+        loginResponse.headers.location.includes('/admin/dashboard')) {
+      console.log('Login successful! Redirecting to dashboard...');
+    } else if (loginResponse.status === 200 && loginResponse.data.includes('dashboard')) {
+      console.log('Login successful! Dashboard loaded.');
+    } else {
+      // Check the response body for error messages
+      const loginPage$ = cheerio.load(loginResponse.data);
+      const errorMsg = loginPage$('.alert-danger').text().trim() || 'Unknown login error';
+      console.error('Login failed:', errorMsg);
+      throw new Error(`Login failed: ${errorMsg}`);
     }
     
     console.log('Login successful! Initializing session data...');
     
     // Step 6: Get initial data (required after login)
     console.log('Step 6: Fetching initial data...');
-    axiosInstance.defaults.headers.common['Referer'] = BASE_URL + '/';
+    axiosInstance.defaults.headers.common['Referer'] = BASE_URL + '/admin/';
     const initDataResponse = await axiosInstance.get(`${BASE_URL}/api/initdata`);
     console.log(`Init data status: ${initDataResponse.status}`);
     console.log('Init data:', JSON.stringify(initDataResponse.data));
@@ -180,13 +203,13 @@ async function getConsignorData(event, context) {
     // Try multiple potential statement URLs, starting with the most likely ones
     const urlPatterns = [
       `/admin/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`,
-      `/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`,
-      `/admin/statements/view/auction/${auctionCode}/sellerid/${consignorId}`,
-      `/statements/view/auction/${auctionCode}/sellerid/${consignorId}`,
       `/admin/statements/printreport/${auctionCode}/${consignorId}`,
-      `/statements/printreport/${auctionCode}/${consignorId}`,
+      `/admin/statements/view/auction/${auctionCode}/sellerid/${consignorId}`,
       `/admin/statements/view/${auctionCode}/${consignorId}`,
-      `/statements/view/${auctionCode}/${consignorId}`
+      `/admin/reports/consignor/${auctionCode}/${consignorId}`,
+      `/admin/reports/consignor/${auctionCode}`,
+      `/admin/reports/consignor/${consignorId}`,
+      `/admin/reports/consignor`
     ];
     
     let statementResponse = null;
@@ -231,7 +254,7 @@ async function getConsignorData(event, context) {
     saveDebugHTML('statement.html', statementResponse.data);
     
     // Parse the HTML response with cheerio
-    const $ = cheerio.load(statementResponse.data);
+    const statement$ = cheerio.load(statementResponse.data);
     
     // Extract consignor information with more robust selectors
     // Based on the approach in analyze_page.py
@@ -259,7 +282,7 @@ async function getConsignorData(event, context) {
     ];
     
     for (const selector of nameSelectors) {
-      const element = $(selector);
+      const element = statement$(selector);
       if (element.length > 0) {
         const text = element.text().trim();
         if (text) {
@@ -306,7 +329,7 @@ async function getConsignorData(event, context) {
     ];
     
     for (const selector of emailSelectors) {
-      const element = $(selector);
+      const element = statement$(selector);
       if (element.length > 0) {
         let text;
         
@@ -341,7 +364,7 @@ async function getConsignorData(event, context) {
     ];
     
     for (const selector of auctionSelectors) {
-      const element = $(selector);
+      const element = statement$(selector);
       if (element.length > 0) {
         const text = element.text().trim();
         if (text) {
@@ -381,7 +404,7 @@ async function getConsignorData(event, context) {
     ];
     
     for (const selector of dateSelectors) {
-      const element = $(selector);
+      const element = statement$(selector);
       if (element.length > 0) {
         const text = element.text().trim();
         if (text) {
@@ -422,7 +445,7 @@ async function getConsignorData(event, context) {
     ];
     
     for (const selector of totalSelectors) {
-      const element = $(selector);
+      const element = statement$(selector);
       if (element.length > 0) {
         const text = element.text().trim();
         if (text) {
@@ -435,7 +458,7 @@ async function getConsignorData(event, context) {
             // Try to find a sibling element with a dollar amount
             const siblings = element.siblings();
             siblings.each((i, sibling) => {
-              const siblingText = $(sibling).text().trim();
+              const siblingText = statement$(sibling).text().trim();
               const siblingMatch = siblingText.match(/[$]?([\d,.]+)/);
               if (siblingMatch && /^\d[\d,.]*$/.test(siblingMatch[1])) {
                 extractedAmount = siblingMatch[1];
@@ -448,7 +471,7 @@ async function getConsignorData(event, context) {
           if (!/^\d[\d,.]*$/.test(extractedAmount)) {
             const parentRow = element.closest('tr');
             if (parentRow.length > 0) {
-              const rowText = parentRow.text().trim();
+              const rowText = statement$(parentRow).text().trim();
               const rowMatch = rowText.match(/[$]?([\d,.]+)/);
               if (rowMatch && /^\d[\d,.]*$/.test(rowMatch[1])) {
                 extractedAmount = rowMatch[1];
