@@ -25,7 +25,9 @@ exports.handler = async (event, context) => {
     // Fetch real data from McLemore Auction admin system
     try {
       // First, authenticate with the admin system
-      const loginUrl = 'https://www.mclemoreauction.com/admin/login';
+      // NOTE: Updated to use the correct login URL
+      const loginUrl = 'https://www.mclemoreauction.com/login/';
+      const apiLoginUrl = 'https://www.mclemoreauction.com/api/login';
       
       // Create a cookie jar for session management
       const cookieJar = {};
@@ -39,18 +41,6 @@ exports.handler = async (event, context) => {
       });
       console.log('Login page fetched successfully');
       
-      let csrfToken = '';
-      
-      // Extract CSRF token if present
-      const $ = cheerio.load(loginPageResponse.data);
-      
-      // Look for common CSRF token input fields
-      csrfToken = $('input[name="csrf_token"]').val() || 
-                 $('input[name="_token"]').val() || 
-                 $('meta[name="csrf-token"]').attr('content') || '';
-      
-      console.log('CSRF token found:', csrfToken ? 'Yes' : 'No');
-      
       // Store cookies from the login page response
       if (loginPageResponse.headers['set-cookie']) {
         console.log('Storing cookies from login page');
@@ -63,60 +53,115 @@ exports.handler = async (event, context) => {
       // Step 2: Submit login credentials
       console.log('Submitting login credentials...');
       
-      // Find the login form and its fields
-      const loginForm = $('form').filter((i, el) => {
-        const action = $(el).attr('action') || '';
-        return action.includes('login') || action === '';
-      }).first();
-      
-      const usernameField = loginForm.find('input[type="text"], input[type="email"], input[name="username"]').attr('name') || 'username';
-      const passwordField = loginForm.find('input[type="password"]').attr('name') || 'password';
-      const csrfField = loginForm.find('input[name="csrf_token"], input[name="_token"]').attr('name') || 'csrf_token';
-      
-      console.log(`Form fields identified - username: ${usernameField}, password: ${passwordField}, csrf: ${csrfField}`);
-      
-      const loginFormData = new URLSearchParams();
-      loginFormData.append(usernameField, username);
-      loginFormData.append(passwordField, password);
-      if (csrfToken && csrfField) {
-        loginFormData.append(csrfField, csrfToken);
-      }
-      
-      const loginResponse = await axios.post(loginUrl, loginFormData, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Cookie': Object.entries(cookieJar).map(([key, value]) => `${key}=${value}`).join('; '),
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
-          'Referer': loginUrl
-        },
-        maxRedirects: 0,
-        validateStatus: status => status >= 200 && status < 400
-      });
-      
-      console.log('Login response status:', loginResponse.status);
-      
-      // Update cookie jar with any new cookies
-      if (loginResponse.headers['set-cookie']) {
-        console.log('Storing cookies from login response');
-        loginResponse.headers['set-cookie'].forEach(cookie => {
-          const cookieParts = cookie.split(';')[0].split('=');
-          cookieJar[cookieParts[0]] = cookieParts[1];
+      // Try API-based login first (most modern approach)
+      try {
+        const loginResponse = await axios.post(apiLoginUrl, {
+          username: username,
+          password: password
+        }, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Cookie': Object.entries(cookieJar).map(([key, value]) => `${key}=${value}`).join('; '),
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
+            'Referer': loginUrl
+          }
         });
+        
+        console.log('API Login response status:', loginResponse.status);
+        
+        // Update cookie jar with any new cookies
+        if (loginResponse.headers['set-cookie']) {
+          console.log('Storing cookies from API login response');
+          loginResponse.headers['set-cookie'].forEach(cookie => {
+            const cookieParts = cookie.split(';')[0].split('=');
+            cookieJar[cookieParts[0]] = cookieParts[1];
+          });
+        }
+      } catch (apiLoginError) {
+        console.log('API login failed, trying traditional form login');
+        
+        // Extract CSRF token if present
+        const $ = cheerio.load(loginPageResponse.data);
+        const csrfToken = $('input[name="csrf_token"]').val() || 
+                        $('input[name="_token"]').val() || 
+                        $('meta[name="csrf-token"]').attr('content') || '';
+        
+        // Find the login form and its fields
+        const loginForm = $('form').filter((i, el) => {
+          const action = $(el).attr('action') || '';
+          return action.includes('login') || action === '';
+        }).first();
+        
+        const usernameField = loginForm.find('input[type="text"], input[type="email"], input[name="username"]').attr('name') || 'username';
+        const passwordField = loginForm.find('input[type="password"]').attr('name') || 'password';
+        const csrfField = loginForm.find('input[name="csrf_token"], input[name="_token"]').attr('name') || 'csrf_token';
+        
+        console.log(`Form fields identified - username: ${usernameField}, password: ${passwordField}, csrf: ${csrfField}`);
+        
+        const loginFormData = new URLSearchParams();
+        loginFormData.append(usernameField, username);
+        loginFormData.append(passwordField, password);
+        if (csrfToken && csrfField) {
+          loginFormData.append(csrfField, csrfToken);
+        }
+        
+        const loginResponse = await axios.post(loginUrl, loginFormData, {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Cookie': Object.entries(cookieJar).map(([key, value]) => `${key}=${value}`).join('; '),
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
+            'Referer': loginUrl
+          },
+          maxRedirects: 0,
+          validateStatus: status => status >= 200 && status < 400
+        });
+        
+        console.log('Form Login response status:', loginResponse.status);
+        
+        // Update cookie jar with any new cookies
+        if (loginResponse.headers['set-cookie']) {
+          console.log('Storing cookies from form login response');
+          loginResponse.headers['set-cookie'].forEach(cookie => {
+            const cookieParts = cookie.split(';')[0].split('=');
+            cookieJar[cookieParts[0]] = cookieParts[1];
+          });
+        }
       }
       
-      // Step 3: Fetch the consignor statement data
-      const statementUrl = `https://www.mclemoreauction.com/admin/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`;
-      console.log('Fetching statement data from:', statementUrl);
+      // Step 3: Try multiple potential statement URLs
+      const statementUrls = [
+        `https://www.mclemoreauction.com/admin/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`,
+        `https://www.mclemoreauction.com/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`,
+        `https://www.mclemoreauction.com/api/statements/auction/${auctionCode}/seller/${consignorId}`,
+        `https://www.mclemoreauction.com/admin/statements/auction/${auctionCode}/seller/${consignorId}`
+      ];
       
-      const statementResponse = await axios.get(statementUrl, {
-        headers: {
-          'Cookie': Object.entries(cookieJar).map(([key, value]) => `${key}=${value}`).join('; '),
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
-          'Referer': 'https://www.mclemoreauction.com/admin/statements'
+      let statementResponse = null;
+      let successUrl = '';
+      
+      // Try each URL until one works
+      for (const url of statementUrls) {
+        try {
+          console.log('Trying to fetch statement data from:', url);
+          statementResponse = await axios.get(url, {
+            headers: {
+              'Cookie': Object.entries(cookieJar).map(([key, value]) => `${key}=${value}`).join('; '),
+              'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.114 Safari/537.36',
+              'Referer': 'https://www.mclemoreauction.com/statements'
+            }
+          });
+          
+          console.log('Statement data fetched successfully from:', url);
+          successUrl = url;
+          break;
+        } catch (urlError) {
+          console.log(`Failed to fetch from ${url}:`, urlError.message);
         }
-      });
+      }
       
-      console.log('Statement data fetched successfully');
+      if (!statementResponse) {
+        throw new Error('Failed to fetch statement data from any of the attempted URLs');
+      }
       
       // Parse the HTML to extract consignor data
       const $statement = cheerio.load(statementResponse.data);
@@ -125,6 +170,7 @@ exports.handler = async (event, context) => {
       // Save HTML for debugging
       const htmlContent = statementResponse.data;
       console.log('HTML content length:', htmlContent.length);
+      console.log('Successful URL:', successUrl);
       
       // Extract consignor information with more robust selectors
       let consignorName = '';
