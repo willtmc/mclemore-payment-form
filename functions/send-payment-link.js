@@ -103,21 +103,21 @@ async function sendEmail(consignorName, consignorEmail, paymentFormUrl, auctionT
       }
     });
   } else {
-    console.log('Using configured email account');
-    // Use the configured email service
+    console.log('Using Gmail SMTP with account:', process.env.EMAIL_USER);
+    // Use explicit Gmail configuration that we've verified works
     transporter = nodemailer.createTransport({
-      host: process.env.SMTP_SERVER || 'smtp.gmail.com',
-      port: parseInt(process.env.SMTP_PORT || '587'),
+      host: 'smtp.gmail.com',
+      port: 587,
       secure: false,
       auth: {
-        user: process.env.SMTP_USERNAME || process.env.EMAIL_USER,
-        pass: process.env.SMTP_APP_PASSWORD || process.env.EMAIL_PASS
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
       }
     });
   }
 
   const mailOptions = {
-    from: process.env.EMAIL_FROM || process.env.REPORT_EMAIL || 'McLemore Auction <noreply@mclemoreauction.com>',
+    from: process.env.EMAIL_FROM || `McLemore Auction <${process.env.EMAIL_USER}>`,
     to: consignorEmail,
     subject: 'McLemore Auction Payment Form',
     html: `
