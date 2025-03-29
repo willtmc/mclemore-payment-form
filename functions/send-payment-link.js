@@ -106,16 +106,18 @@ async function sendEmail(consignorName, consignorEmail, paymentFormUrl, auctionT
     console.log('Using configured email account');
     // Use the configured email service
     transporter = nodemailer.createTransport({
-      service: process.env.EMAIL_SERVICE || 'gmail',
+      host: process.env.SMTP_SERVER || 'smtp.gmail.com',
+      port: parseInt(process.env.SMTP_PORT || '587'),
+      secure: false,
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+        user: process.env.SMTP_USERNAME || process.env.EMAIL_USER,
+        pass: process.env.SMTP_APP_PASSWORD || process.env.EMAIL_PASS
       }
     });
   }
 
   const mailOptions = {
-    from: process.env.EMAIL_FROM || 'McLemore Auction <noreply@mclemoreauction.com>',
+    from: process.env.EMAIL_FROM || process.env.REPORT_EMAIL || 'McLemore Auction <noreply@mclemoreauction.com>',
     to: consignorEmail,
     subject: 'McLemore Auction Payment Form',
     html: `
