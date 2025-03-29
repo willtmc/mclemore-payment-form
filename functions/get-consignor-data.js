@@ -1,6 +1,7 @@
 // Netlify Function to retrieve consignor data
 const axios = require('axios');
 const cheerio = require('cheerio');
+const fs = require('fs'); // For debugging file writes
 
 exports.handler = async function(event, context) {
   console.log('Starting get-consignor-data function...');
@@ -32,6 +33,7 @@ exports.handler = async function(event, context) {
     }
     
     console.log(`Attempting to fetch data for auction ${auctionCode}, consignor ${consignorId}`);
+    console.log(`Debug info - Username: ${username}, Password: [REDACTED]`);
     
     // Create a session with axios
     const session = axios.create({
@@ -53,41 +55,161 @@ exports.handler = async function(event, context) {
       }
     });
     
-    // Step 1: Get login page first to initialize cookies
-    console.log('Step 1: Fetching login page...');
-    const loginPageResponse = await session.get('/login');
-    console.log(`Login page status: ${loginPageResponse.status}`);
+    // Wrap each request in a try-catch to better handle and log errors
+    try {
+      console.log('Step 1: Fetching login page...');
+      const loginPageResponse = await session.get('/login');
+      console.log(`Login page status: ${loginPageResponse.status}`);
+      // Save login page HTML for debugging
+      try { fs.writeFileSync('/tmp/login-page.html', loginPageResponse.data); } catch (e) { console.log('Could not save login page HTML:', e.message); }
+    } catch (error) {
+      console.error('Error in Step 1 (Fetching login page):', error.message);
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response headers:', JSON.stringify(error.response.headers));
+        console.error('Response data:', error.response.data);
+      }
+      throw new Error(`Login page fetch failed: ${error.message}`);
+    }
     
-    // Step 2: Check cookies
-    console.log('Step 2: Checking cookies...');
-    const cookiesResponse = await session.get('/api/cookies');
-    console.log(`Cookies check status: ${cookiesResponse.status}`);
+    try {
+      console.log('Step 2: Checking cookies...');
+      const cookiesResponse = await session.get('/api/cookies');
+      console.log(`Cookies check status: ${cookiesResponse.status}`);
+      console.log('Cookies:', JSON.stringify(cookiesResponse.data)); // Log cookies for debugging
+    } catch (error) {
+      console.error('Error in Step 2 (Checking cookies):', error.message);
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response headers:', JSON.stringify(error.response.headers));
+      }
+      // Continue despite cookie error - this might not be critical
+      console.log('Continuing despite cookie error...');
+    }
     
-    // Step 3: Get session
-    console.log('Step 3: Getting session...');
-    const sessionResponse = await session.get('/api/getsession');
-    console.log(`Session response status: ${sessionResponse.status}`);
+    try {
+      console.log('Step 3: Getting session...');
+      const sessionResponse = await session.get('/api/getsession');
+      console.log(`Session response status: ${sessionResponse.status}`);
+      console.log('Session data:', JSON.stringify(sessionResponse.data)); // Log session data for debugging
+    } catch (error) {
+      console.error('Error in Step 3 (Getting session):', error.message);
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response headers:', JSON.stringify(error.response.headers));
+      }
+      // Continue despite session error - this might not be critical
+      console.log('Continuing despite session error...');
+    }
     
-    // Step 4: Set request URL
-    console.log('Step 4: Setting request URL...');
-    const setRequestUrlResponse = await session.post('/api/setrequesturl', {
-      url: 'https://www.mclemoreauction.com/'
-    });
-    console.log(`Set request URL status: ${setRequestUrlResponse.status}`);
+    try {
+      console.log('Step 4: Setting request URL...');
+      const setRequestUrlResponse = await session.post('/api/setrequesturl', {
+        url: 'https://www.mclemoreauction.com/'
+      });
+      console.log(`Set request URL status: ${setRequestUrlResponse.status}`);
+    } catch (error) {
+      console.error('Error in Step 4 (Setting request URL):', error.message);
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response headers:', JSON.stringify(error.response.headers));
+      }
+      // Continue despite URL error - this might not be critical
+      console.log('Continuing despite URL error...');
+    }
     
-    // Step 5: Perform login using the API endpoint
-    console.log('Step 5: Attempting login...');
-    const loginResponse = await session.post('/api/ajaxlogin', {
-      user_name: username,
-      password: password,
-      autologin: ''
-    });
-    console.log(`Login response status: ${loginResponse.status}`);
-    
-    // Check if login was successful
-    const loginData = loginResponse.data;
-    if (loginData.status !== 'success') {
-      throw new Error(`Login failed: ${loginData.msg || 'Unknown error'}`);
+    let loginData;
+    try {
+      console.log('Step 5: Attempting login...');
+      const loginResponse = await session.post('/api/ajaxlogin', {
+        user_name: username,
+        password: password,
+        autologin: ''
+      });
+      console.log(`Login response status: ${loginResponse.status}`);
+      console.log('Login response data:', JSON.stringify(loginResponse.data)); // Log login response data for debugging
+      
+      // Check if login was successful
+      loginData = loginResponse.data;
+      if (loginData.status !== 'success') {
+        throw new Error(`Login failed: ${loginData.msg || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error in Step 5 (Login):', error.message);
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response headers:', JSON.stringify(error.response.headers));
+        if (error.response.data) {
+          console.error('Response data:', JSON.stringify(error.response.data));
+        }
+      }
+      
+      // Try alternative login approach
+      console.log('API login failed, trying traditional form login...');
+      try {
+        // Get the login page to extract form details
+        const loginPageResponse = await session.get('/login');
+        const $ = cheerio.load(loginPageResponse.data);
+        
+        // Find the login form
+        const loginForm = $('form').filter((i, el) => {
+          const action = $(el).attr('action') || '';
+          return action.includes('login') || action === '';
+        }).first();
+        
+        if (loginForm.length === 0) {
+          console.error('Could not find login form on page');
+          throw new Error('Login form not found');
+        }
+        
+        // Extract form action and method
+        const formAction = loginForm.attr('action') || '/login';
+        const formMethod = loginForm.attr('method') || 'post';
+        console.log(`Form action: ${formAction}, method: ${formMethod}`);
+        
+        // Extract form fields
+        const formFields = {};
+        loginForm.find('input').each((i, el) => {
+          const name = $(el).attr('name');
+          const value = $(el).attr('value') || '';
+          if (name) formFields[name] = value;
+        });
+        console.log('Form fields:', JSON.stringify(formFields));
+        
+        // Prepare form data
+        const formData = new URLSearchParams();
+        Object.keys(formFields).forEach(key => {
+          formData.append(key, formFields[key]);
+        });
+        
+        // Add username and password
+        const usernameField = loginForm.find('input[type="text"], input[type="email"], input[name="username"]').attr('name') || 'username';
+        const passwordField = loginForm.find('input[type="password"]').attr('name') || 'password';
+        formData.append(usernameField, username);
+        formData.append(passwordField, password);
+        
+        // Submit the form
+        console.log('Submitting login form...');
+        const loginFormResponse = await session.post(formAction, formData, {
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        });
+        console.log(`Form login response status: ${loginFormResponse.status}`);
+        
+        // Check if we were redirected to a dashboard or admin page
+        const responseUrl = loginFormResponse.request?.res?.responseUrl || '';
+        console.log(`Redirected to: ${responseUrl}`);
+        
+        if (responseUrl.includes('dashboard') || responseUrl.includes('admin')) {
+          console.log('Form login appears successful based on redirect');
+        } else {
+          console.error('Form login may have failed - unexpected redirect');
+        }
+      } catch (formLoginError) {
+        console.error('Error in form login attempt:', formLoginError.message);
+        throw new Error(`All login attempts failed: ${error.message}, then: ${formLoginError.message}`);
+      }
     }
     
     console.log('Login successful! Initializing session data...');
@@ -97,6 +219,7 @@ exports.handler = async function(event, context) {
     session.defaults.headers.common['Referer'] = 'https://www.mclemoreauction.com/';
     const initDataResponse = await session.get('/api/initdata');
     console.log(`Init data status: ${initDataResponse.status}`);
+    console.log('Init data:', JSON.stringify(initDataResponse.data)); // Log init data for debugging
     
     // Step 7: Get auctions data (required after login)
     console.log('Step 7: Fetching auctions data...');
@@ -105,6 +228,7 @@ exports.handler = async function(event, context) {
       meta_also: 'true'
     });
     console.log(`Auctions data status: ${auctionsResponse.status}`);
+    console.log('Auctions data:', JSON.stringify(auctionsResponse.data)); // Log auctions data for debugging
     
     console.log('Session fully initialized!');
     
@@ -141,6 +265,7 @@ exports.handler = async function(event, context) {
     }
     
     console.log(`Successfully retrieved statement from ${successUrl}`);
+    fs.writeFileSync('/tmp/statement.html', statementResponse.data); // Save statement HTML for debugging
     
     // Parse the HTML response with cheerio
     const $ = cheerio.load(statementResponse.data);
@@ -151,9 +276,6 @@ exports.handler = async function(event, context) {
     let auctionTitle = '';
     let statementDate = '';
     let totalDue = '';
-    
-    // Save the HTML for debugging if needed
-    // require('fs').writeFileSync('/tmp/statement.html', statementResponse.data);
     
     // Extract consignor name using multiple approaches
     console.log('Extracting consignor name...');
