@@ -180,9 +180,9 @@ exports.handler = async (event, context) => {
       let totalDue = '';
       
       // Try different selectors for consignor name
-      consignorName = $statement('.consignor-name').text().trim();
+      consignorName = $statement('.consignor-name, .seller-name').text().trim();
       if (!consignorName) {
-        // Look for elements containing "Consignor" text
+        // Look for elements containing "Consignor" or "Seller" text
         $statement('*').each((i, el) => {
           const text = $statement(el).text();
           if (text.includes('Consignor:') || text.includes('Seller:')) {
@@ -190,11 +190,28 @@ exports.handler = async (event, context) => {
             return false; // break the loop
           }
         });
+        
+        // If still not found, try looking for table cells or divs that might contain the name
+        if (!consignorName) {
+          // Look for tables with seller information
+          $statement('table tr').each((i, el) => {
+            const rowText = $statement(el).text();
+            if (rowText.toLowerCase().includes('seller') || rowText.toLowerCase().includes('consignor')) {
+              // Get the next cell or the cell to the right
+              consignorName = $statement(el).find('td:nth-child(2)').text().trim();
+              if (!consignorName) {
+                // Try the next row
+                consignorName = $statement(el).next('tr').find('td').first().text().trim();
+              }
+              return false; // break the loop
+            }
+          });
+        }
       }
       console.log('Extracted consignor name:', consignorName || 'Not found');
       
       // Try different selectors for consignor email
-      consignorEmail = $statement('.consignor-email').text().trim();
+      consignorEmail = $statement('.consignor-email, .seller-email').text().trim();
       if (!consignorEmail) {
         // Look for elements containing @ symbol
         $statement('*').each((i, el) => {
@@ -208,50 +225,162 @@ exports.handler = async (event, context) => {
             }
           }
         });
+        
+        // If still not found, try looking for table cells or divs that might contain the email
+        if (!consignorEmail) {
+          // Look for tables with email information
+          $statement('table tr').each((i, el) => {
+            const rowText = $statement(el).text();
+            if (rowText.toLowerCase().includes('email')) {
+              // Get the next cell or the cell to the right
+              const cellText = $statement(el).find('td:nth-child(2)').text().trim();
+              const emailMatch = cellText.match(/[\w.-]+@[\w.-]+\.[\w.-]+/);
+              if (emailMatch) {
+                consignorEmail = emailMatch[0];
+                return false; // break the loop
+              }
+            }
+          });
+        }
       }
       console.log('Extracted consignor email:', consignorEmail || 'Not found');
       
       // Try different selectors for auction title
-      auctionTitle = $statement('.auction-title, .auction-name').text().trim();
+      auctionTitle = $statement('.auction-title, .auction-name, .sale-name, .sale-title').text().trim();
       if (!auctionTitle) {
         // Usually the first h1 or h2 is the auction title
         auctionTitle = $statement('h1').first().text().trim() || 
                       $statement('h2').first().text().trim() ||
                       $statement('title').text().trim();
+                      
+        // If still not found, try looking for table cells or divs that might contain the auction title
+        if (!auctionTitle || auctionTitle.length < 5) {
+          // Look for tables with auction information
+          $statement('table tr').each((i, el) => {
+            const rowText = $statement(el).text();
+            if (rowText.toLowerCase().includes('auction') || rowText.toLowerCase().includes('sale')) {
+              // Get the next cell or the cell to the right
+              auctionTitle = $statement(el).find('td:nth-child(2)').text().trim();
+              if (!auctionTitle || auctionTitle.length < 5) {
+                // Try the next row
+                auctionTitle = $statement(el).next('tr').find('td').first().text().trim();
+              }
+              return false; // break the loop
+            }
+          });
+        }
       }
       console.log('Extracted auction title:', auctionTitle || 'Not found');
       
       // Try different selectors for statement date
-      statementDate = $statement('.statement-date, .date').text().trim();
+      statementDate = $statement('.statement-date, .date, .report-date').text().trim();
       if (!statementDate) {
         // Look for date patterns
         $statement('*').each((i, el) => {
           const text = $statement(el).text();
+          // Look for common date formats: MM/DD/YYYY, MM-DD-YYYY, etc.
           const dateMatch = text.match(/(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/);
           if (dateMatch) {
             statementDate = dateMatch[0];
             return false; // break the loop
           }
         });
+        
+        // If still not found, try looking for table cells or divs that might contain the date
+        if (!statementDate) {
+          // Look for tables with date information
+          $statement('table tr').each((i, el) => {
+            const rowText = $statement(el).text();
+            if (rowText.toLowerCase().includes('date')) {
+              // Get the next cell or the cell to the right
+              statementDate = $statement(el).find('td:nth-child(2)').text().trim();
+              if (!statementDate) {
+                // Try the next row
+                statementDate = $statement(el).next('tr').find('td').first().text().trim();
+              }
+              return false; // break the loop
+            }
+          });
+        }
       }
       console.log('Extracted statement date:', statementDate || 'Not found');
       
       // Try different selectors for total due
-      totalDue = $statement('.total-due, .amount-due, .balance-due').text().trim();
+      totalDue = $statement('.total-due, .amount-due, .balance-due, .total').text().trim();
       if (!totalDue) {
         // Look for currency patterns
         $statement('*').each((i, el) => {
           const text = $statement(el).text();
           if (text.includes('$') && /\$[\d,.]+/.test(text)) {
-            const amountMatch = text.match(/\$[\d,.]+/);
-            if (amountMatch) {
-              totalDue = amountMatch[0];
-              return false; // break the loop
+            // Look for phrases like "Total Due", "Amount Due", "Balance", etc.
+            if (text.toLowerCase().includes('total') || 
+                text.toLowerCase().includes('due') || 
+                text.toLowerCase().includes('balance') || 
+                text.toLowerCase().includes('amount')) {
+              const amountMatch = text.match(/\$[\d,.]+/);
+              if (amountMatch) {
+                totalDue = amountMatch[0];
+                return false; // break the loop
+              }
             }
           }
         });
+        
+        // If still not found, try looking for table cells or divs that might contain the total due
+        if (!totalDue) {
+          // Look for tables with total information
+          $statement('table tr').each((i, el) => {
+            const rowText = $statement(el).text().toLowerCase();
+            if ((rowText.includes('total') || rowText.includes('due') || rowText.includes('balance')) && 
+                rowText.includes('$')) {
+              // Get the cell with the dollar amount
+              const amountMatch = rowText.match(/\$[\d,.]+/);
+              if (amountMatch) {
+                totalDue = amountMatch[0];
+                return false; // break the loop
+              }
+            }
+          });
+        }
       }
       console.log('Extracted total due:', totalDue || 'Not found');
+      
+      // If we couldn't extract the data properly, try a more aggressive approach
+      // by parsing the raw HTML for specific patterns
+      if (!consignorName || !auctionTitle || !totalDue) {
+        console.log('Using aggressive HTML parsing approach');
+        const htmlString = statementResponse.data;
+        
+        // Look for consignor name in the raw HTML
+        if (!consignorName) {
+          const nameRegex = /(?:Consignor|Seller)[\s:]+([^<\n\r]+)/i;
+          const nameMatch = htmlString.match(nameRegex);
+          if (nameMatch && nameMatch[1]) {
+            consignorName = nameMatch[1].trim();
+            console.log('Found consignor name in raw HTML:', consignorName);
+          }
+        }
+        
+        // Look for auction title in the raw HTML
+        if (!auctionTitle) {
+          const titleRegex = /(?:Auction|Sale)[\s:]+([^<\n\r]+)/i;
+          const titleMatch = htmlString.match(titleRegex);
+          if (titleMatch && titleMatch[1]) {
+            auctionTitle = titleMatch[1].trim();
+            console.log('Found auction title in raw HTML:', auctionTitle);
+          }
+        }
+        
+        // Look for total due in the raw HTML
+        if (!totalDue) {
+          const dueRegex = /(?:Total|Due|Balance)[\s:]+\$(\d[\d,.]+)/i;
+          const dueMatch = htmlString.match(dueRegex);
+          if (dueMatch && dueMatch[1]) {
+            totalDue = '$' + dueMatch[1].trim();
+            console.log('Found total due in raw HTML:', totalDue);
+          }
+        }
+      }
       
       // Create consignor data object
       const consignorData = {
