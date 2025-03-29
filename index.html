@@ -801,6 +801,8 @@
             </div>
           </div>
         `;
+        
+        return data;
       })
       .catch(error => {
         console.error('Error sending payment link:', error);
@@ -825,7 +827,7 @@
       const password = document.getElementById('password').value.trim();
       
       // Call the get-consignor-data function with credentials
-      return fetch('/.netlify/functions/get-consignor-data', {
+      fetch('/.netlify/functions/get-consignor-data', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -978,9 +980,39 @@
     document.addEventListener('DOMContentLoaded', function() {
       // Check if user is already authenticated
       if (authToken && currentUser) {
-        // Show the staff form
-        document.getElementById('login-form').classList.add('hidden');
-        document.getElementById('step-1').classList.remove('hidden');
+        // Verify token validity (check if expired)
+        try {
+          const tokenData = JSON.parse(atob(authToken.split('.')[1]));
+          const currentTime = Math.floor(Date.now() / 1000);
+          
+          // If token is expired, clear it and show login
+          if (tokenData.exp && tokenData.exp < currentTime) {
+            console.log('Token expired, logging out');
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('currentUser');
+            authToken = null;
+            currentUser = null;
+            document.getElementById('login-form').classList.remove('hidden');
+            document.getElementById('step-1').classList.add('hidden');
+          } else {
+            // Valid token, show the staff form
+            document.getElementById('login-form').classList.add('hidden');
+            document.getElementById('step-1').classList.remove('hidden');
+          }
+        } catch (e) {
+          // Invalid token format, clear it and show login
+          console.error('Invalid token format', e);
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('currentUser');
+          authToken = null;
+          currentUser = null;
+          document.getElementById('login-form').classList.remove('hidden');
+          document.getElementById('step-1').classList.add('hidden');
+        }
+      } else {
+        // No token or user, ensure login form is visible
+        document.getElementById('login-form').classList.remove('hidden');
+        document.getElementById('step-1').classList.add('hidden');
       }
       
       // Check if there are URL parameters for auction and consignor
