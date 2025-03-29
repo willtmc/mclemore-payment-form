@@ -19,6 +19,28 @@
   </script>
 </head>
 <body class="bg-gray-50 min-h-screen">
+  <!-- Immediate script to ensure login form is shown first -->
+  <script>
+    // Clear any potentially invalid auth data on page load
+    if (localStorage.getItem('authToken')) {
+      try {
+        const token = localStorage.getItem('authToken');
+        const tokenData = JSON.parse(atob(token.split('.')[1]));
+        const currentTime = Math.floor(Date.now() / 1000);
+        
+        // If token is expired or invalid, clear it
+        if (!tokenData.exp || tokenData.exp < currentTime) {
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('currentUser');
+        }
+      } catch (e) {
+        // Invalid token format, clear it
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('currentUser');
+      }
+    }
+  </script>
+  
   <div class="max-w-4xl mx-auto p-6 md:p-8 lg:p-10">
     <header class="mb-8">
       <img src="/images/mclemore-logo.png" alt="McLemore Auction Company" class="h-20 md:h-24 lg:h-28 w-auto mb-6" />
@@ -846,7 +868,7 @@
         }
         return response.json();
       })
-      .then(consignorData => {
+      .then(data => {
         // Generate a unique payment form URL
         const paymentFormUrl = generatePaymentFormUrl(auctionCode, consignorId);
         
@@ -874,23 +896,23 @@
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <p class="text-sm text-gray-500">Consignor Name:</p>
-                  <p class="font-medium text-gray-800">${consignorData.name}</p>
+                  <p class="font-medium text-gray-800">${data.name}</p>
                 </div>
                 <div>
                   <p class="text-sm text-gray-500">Consignor Email:</p>
-                  <p class="font-medium text-gray-800">${consignorData.email}</p>
+                  <p class="font-medium text-gray-800">${data.email}</p>
                 </div>
                 <div>
                   <p class="text-sm text-gray-500">Auction:</p>
-                  <p class="font-medium text-gray-800">${consignorData.auctionTitle}</p>
+                  <p class="font-medium text-gray-800">${data.auctionTitle}</p>
                 </div>
                 <div>
                   <p class="text-sm text-gray-500">Statement Date:</p>
-                  <p class="font-medium text-gray-800">${consignorData.statementDate}</p>
+                  <p class="font-medium text-gray-800">${data.statementDate}</p>
                 </div>
                 <div>
                   <p class="text-sm text-gray-500">Total Amount Due:</p>
-                  <p class="font-medium text-primary text-lg">${consignorData.totalDue}</p>
+                  <p class="font-medium text-primary text-lg">${data.totalDue}</p>
                 </div>
                 <div>
                   <p class="text-sm text-gray-500">Auction Code:</p>
@@ -902,7 +924,7 @@
                 </div>
                 <div>
                   <p class="text-sm text-gray-500">Retrieved By:</p>
-                  <p class="font-medium text-gray-800">${consignorData.fetchedBy || username}</p>
+                  <p class="font-medium text-gray-800">${data.fetchedBy || username}</p>
                 </div>
               </div>
             </div>
@@ -911,7 +933,7 @@
               <button onclick="resetForm()" class="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
                 Cancel
               </button>
-              <button onclick="sendPaymentLink('${paymentFormUrl}', '${consignorData.email}', '${consignorData.name}', '${consignorData.auctionTitle}')" class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors">
+              <button onclick="sendPaymentLink('${paymentFormUrl}', '${data.email}', '${data.name}', '${data.auctionTitle}')" class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors">
                 Send Payment Link
               </button>
               <button onclick="copyPaymentUrl('${paymentFormUrl}')" class="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
@@ -921,7 +943,7 @@
           </div>
         `;
         
-        return consignorData;
+        return data;
       })
       .catch(error => {
         console.error('Error fetching consignor data:', error);
@@ -978,6 +1000,11 @@
     
     // Add event listeners to all form fields
     document.addEventListener('DOMContentLoaded', function() {
+      // Force hide all sections except login by default
+      document.getElementById('step-1').classList.add('hidden');
+      document.getElementById('step-2').classList.add('hidden');
+      document.getElementById('login-form').classList.remove('hidden');
+      
       // Check if user is already authenticated
       if (authToken && currentUser) {
         // Verify token validity (check if expired)
@@ -986,16 +1013,15 @@
           const currentTime = Math.floor(Date.now() / 1000);
           
           // If token is expired, clear it and show login
-          if (tokenData.exp && tokenData.exp < currentTime) {
-            console.log('Token expired, logging out');
+          if (!tokenData.exp || tokenData.exp < currentTime) {
+            console.log('Token expired or invalid, showing login');
             localStorage.removeItem('authToken');
             localStorage.removeItem('currentUser');
             authToken = null;
             currentUser = null;
-            document.getElementById('login-form').classList.remove('hidden');
-            document.getElementById('step-1').classList.add('hidden');
           } else {
             // Valid token, show the staff form
+            console.log('Valid token found, showing staff form');
             document.getElementById('login-form').classList.add('hidden');
             document.getElementById('step-1').classList.remove('hidden');
           }
@@ -1006,13 +1032,7 @@
           localStorage.removeItem('currentUser');
           authToken = null;
           currentUser = null;
-          document.getElementById('login-form').classList.remove('hidden');
-          document.getElementById('step-1').classList.add('hidden');
         }
-      } else {
-        // No token or user, ensure login form is visible
-        document.getElementById('login-form').classList.remove('hidden');
-        document.getElementById('step-1').classList.add('hidden');
       }
       
       // Check if there are URL parameters for auction and consignor
