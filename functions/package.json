@@ -1,0 +1,9 @@
+{
+  "name": "mclemore-payment-form-functions",
+  "version": "1.0.0",
+  "description": "Serverless functions for McLemore Auction payment form",
+  "main": "index.js",
+  "dependencies": {
+    "nodemailer": "^6.9.7"
+  }
+}
