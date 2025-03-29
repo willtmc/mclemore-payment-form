@@ -1,5 +1,6 @@
 [build]
   publish = "/"
+  functions = "functions"
 
 # Redirect all URLs to index.html for client-side routing
 [[redirects]]
