@@ -1,4 +1,5 @@
-// Netlify Function for MAC staff authentication
+// Netlify Function to authenticate MAC staff
+
 exports.handler = async (event, context) => {
   // Only allow POST requests
   if (event.httpMethod !== 'POST') {
@@ -7,48 +8,39 @@ exports.handler = async (event, context) => {
 
   try {
     // Parse the request body
-    const { username, password } = JSON.parse(event.body);
+    const requestBody = JSON.parse(event.body);
+    const { username, password } = requestBody;
 
-    // In a production environment, you would validate against a database
-    // For now, we'll use a simple validation for demonstration
-    const validCredentials = [
-      { username: 'macstaff', password: 'auction2025', role: 'staff' },
-      { username: 'macadmin', password: 'secure2025', role: 'admin' }
-    ];
-
-    // Find matching credentials
-    const user = validCredentials.find(
-      (cred) => cred.username === username && cred.password === password
-    );
-
-    if (user) {
-      // Generate a simple JWT-like token (in production, use a proper JWT library)
-      const token = Buffer.from(
-        JSON.stringify({
-          username: user.username,
-          role: user.role,
-          exp: Date.now() + 3600000 // 1 hour expiration
-        })
-      ).toString('base64');
-
+    if (!username || !password) {
       return {
-        statusCode: 200,
-        body: JSON.stringify({
-          message: 'Authentication successful',
-          token,
-          user: {
-            username: user.username,
-            role: user.role
-          }
-        })
-      };
-    } else {
-      return {
-        statusCode: 401,
-        body: JSON.stringify({ message: 'Invalid credentials' })
+        statusCode: 400,
+        body: JSON.stringify({ message: 'Missing username or password' })
       };
     }
+
+    // We'll verify the credentials by attempting to log in to the McLemore Auction admin system
+    // This will be handled by the get-consignor-data function when it's called
+    // For now, we'll just generate a token with the username and an expiration time
+
+    // Create a token with 24-hour expiration
+    const tokenData = {
+      username,
+      exp: Date.now() + (24 * 60 * 60 * 1000) // 24 hours from now
+    };
+
+    // Encode the token as base64
+    const token = Buffer.from(JSON.stringify(tokenData)).toString('base64');
+
+    return {
+      statusCode: 200,
+      body: JSON.stringify({
+        message: 'Authentication successful',
+        token,
+        username
+      })
+    };
   } catch (error) {
+    console.error('Authentication error:', error);
     return {
       statusCode: 500,
       body: JSON.stringify({ message: 'Server error', error: error.toString() })

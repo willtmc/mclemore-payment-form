@@ -3,59 +3,29 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 
 exports.handler = async (event, context) => {
-  // Only allow GET requests
-  if (event.httpMethod !== 'GET') {
+  // Only allow POST requests
+  if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
   try {
-    // Verify authentication token
-    const authHeader = event.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return { statusCode: 401, body: JSON.stringify({ message: 'Unauthorized' }) };
-    }
+    // Parse the request body
+    const requestBody = JSON.parse(event.body);
+    const { auctionCode, consignorId, username, password } = requestBody;
 
-    const token = authHeader.split(' ')[1];
-    let tokenData;
-    
-    try {
-      tokenData = JSON.parse(Buffer.from(token, 'base64').toString());
-      
-      // Check if token is expired
-      if (tokenData.exp < Date.now()) {
-        return { statusCode: 401, body: JSON.stringify({ message: 'Token expired' }) };
-      }
-    } catch (e) {
-      return { statusCode: 401, body: JSON.stringify({ message: 'Invalid token' }) };
-    }
-
-    // Get auction code and consignor ID from query parameters
-    const auctionCode = event.queryStringParameters.auctionCode;
-    const consignorId = event.queryStringParameters.consignorId;
-
-    if (!auctionCode || !consignorId) {
+    if (!auctionCode || !consignorId || !username || !password) {
       return {
         statusCode: 400,
         body: JSON.stringify({ message: 'Missing required parameters' })
       };
     }
 
+    console.log(`Fetching data for auction: ${auctionCode}, consignor: ${consignorId} with user: ${username}`);
+
     // Fetch real data from McLemore Auction admin system
     try {
-      console.log('Starting to fetch real consignor data for auction:', auctionCode, 'consignor:', consignorId);
-      
       // First, authenticate with the admin system
       const loginUrl = 'https://www.mclemoreauction.com/admin/login';
-      const adminUsername = process.env.ADMIN_USERNAME;
-      const adminPassword = process.env.ADMIN_PASSWORD;
-      
-      console.log('Checking admin credentials...');
-      if (!adminUsername || !adminPassword) {
-        console.error('Admin credentials not configured');
-        throw new Error('Admin credentials not configured');
-      }
-      
-      console.log('Admin credentials found, proceeding with authentication');
       
       // Create a cookie jar for session management
       const cookieJar = {};
@@ -106,8 +76,8 @@ exports.handler = async (event, context) => {
       console.log(`Form fields identified - username: ${usernameField}, password: ${passwordField}, csrf: ${csrfField}`);
       
       const loginFormData = new URLSearchParams();
-      loginFormData.append(usernameField, adminUsername);
-      loginFormData.append(passwordField, adminPassword);
+      loginFormData.append(usernameField, username);
+      loginFormData.append(passwordField, password);
       if (csrfToken && csrfField) {
         loginFormData.append(csrfField, csrfToken);
       }
@@ -245,7 +215,9 @@ exports.handler = async (event, context) => {
         email: consignorEmail || 'email@example.com',
         auctionTitle: auctionTitle || 'Auction Title Not Found',
         statementDate: statementDate || new Date().toLocaleDateString(),
-        totalDue: totalDue || '$0.00'
+        totalDue: totalDue || '$0.00',
+        // Include the username of the MAC staff member who fetched the data
+        fetchedBy: username
       };
       
       console.log('Returning consignor data:', consignorData);
@@ -261,48 +233,15 @@ exports.handler = async (event, context) => {
         console.error('Response headers:', JSON.stringify(fetchError.response.headers));
       }
       
-      // For development/testing, fall back to mock data if real data fetch fails
-      console.log('Falling back to mock data');
-      const consignorDatabase = [
-        {
-          auctionCode: '2995',
-          consignorId: '18',
-          name: 'John Smith',
-          email: 'john.smith@example.com',
-          auctionTitle: 'Commercial Retail Fixtures, Drop-in Ceiling Tiles & Equipment Liquidation - Columbia, TN',
-          statementDate: '03/29/2025',
-          totalDue: '$819.62'
-        },
-        {
-          auctionCode: '3006',
-          consignorId: '145',
-          name: 'Sarah Williams',
-          email: 'sarah.williams@example.com',
-          auctionTitle: 'Estate Liquidation - Franklin, TN',
-          statementDate: '03/27/2025',
-          totalDue: '$1,245.78'
-        }
-      ];
-
-      // Find matching consignor data from mock database
-      const mockConsignorData = consignorDatabase.find(
-        (consignor) => consignor.auctionCode === auctionCode && consignor.consignorId === consignorId
-      );
-
-      if (mockConsignorData) {
-        return {
-          statusCode: 200,
-          body: JSON.stringify(mockConsignorData)
-        };
-      } else {
-        return {
-          statusCode: 404,
-          body: JSON.stringify({ 
-            message: 'Consignor not found and real data fetch failed', 
-            error: fetchError.message 
-          })
-        };
-      }
+      // Return error information
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ 
+          message: 'Error fetching consignor data', 
+          error: fetchError.message,
+          status: fetchError.response ? fetchError.response.status : null
+        })
+      };
     }
   } catch (error) {
     console.error('Server error:', error.message);

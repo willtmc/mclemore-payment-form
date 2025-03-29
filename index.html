@@ -560,6 +560,420 @@
       });
     }
     
+    // Function to handle login
+    function handleLogin() {
+      // Get username and password
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
+      
+      // Validate inputs
+      if (!username || !password) {
+        document.getElementById('login-error').classList.remove('hidden');
+        document.getElementById('error-message').textContent = 'Please enter both username and password.';
+        return;
+      }
+      
+      // Show loading state
+      document.getElementById('login-button').disabled = true;
+      document.getElementById('login-button').textContent = 'Logging in...';
+      
+      // Call the authenticate function
+      fetch('/.netlify/functions/authenticate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ username, password })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Authentication failed');
+        }
+        return response.json();
+      })
+      .then(data => {
+        // Store authentication data
+        authToken = data.token;
+        currentUser = { username: data.username };
+        
+        // Save to localStorage
+        localStorage.setItem('authToken', authToken);
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+        
+        // Hide login form, show staff form
+        document.getElementById('login-form').classList.add('hidden');
+        document.getElementById('step-1').classList.remove('hidden');
+        
+        // Update welcome message
+        const welcomeMessage = document.querySelector('#step-1 .text-blue-800');
+        if (welcomeMessage) {
+          welcomeMessage.textContent = `Welcome, ${data.username}. Enter the auction code and consignor ID to generate a payment form link.`;
+        }
+      })
+      .catch(error => {
+        console.error('Login error:', error);
+        document.getElementById('login-error').classList.remove('hidden');
+        document.getElementById('error-message').textContent = 'Invalid username or password. Please try again.';
+        
+        // Reset button state
+        document.getElementById('login-button').disabled = false;
+        document.getElementById('login-button').textContent = 'Log In';
+      });
+    }
+    
+    // Function to handle logout
+    function handleLogout() {
+      // Clear authentication data
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('currentUser');
+      authToken = null;
+      currentUser = null;
+      
+      // Show login form, hide staff form
+      document.getElementById('login-form').classList.remove('hidden');
+      document.getElementById('step-1').classList.add('hidden');
+      document.getElementById('step-2').classList.add('hidden');
+      
+      // Reset form fields
+      document.getElementById('username').value = '';
+      document.getElementById('password').value = '';
+      document.getElementById('login-error').classList.add('hidden');
+    }
+    
+    // Function to reset the form
+    function resetForm() {
+      // Reset the staff form to its initial state
+      document.getElementById('step-1').innerHTML = `
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-xl font-semibold text-primary">Generate Consignor Payment Form</h2>
+          <button 
+            id="logout-button" 
+            class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 focus:outline-none"
+            onclick="handleLogout()"
+          >
+            Logout
+          </button>
+        </div>
+        
+        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="ml-3">
+              <p class="text-sm text-blue-800">
+                Welcome, ${currentUser ? currentUser.username : ''}. Enter the auction code and consignor ID to generate a payment form link.
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div>
+            <label class="block text-gray-700 font-medium mb-2" for="auctionCode">
+              Auction Code <span class="text-red-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              id="auctionCode" 
+              required 
+              class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
+              placeholder="Enter auction code"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-gray-700 font-medium mb-2" for="consignorId">
+              Consignor ID <span class="text-red-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              id="consignorId" 
+              required 
+              class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
+              placeholder="Enter consignor ID"
+            />
+          </div>
+        </div>
+        
+        <div class="flex justify-end">
+          <button 
+            type="button" 
+            id="retrieveStatement" 
+            class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
+          >
+            Generate Payment Form
+          </button>
+        </div>
+      `;
+      
+      // Re-add event listener to the new button
+      document.getElementById('retrieveStatement').addEventListener('click', function() {
+        const auctionCode = document.getElementById('auctionCode').value.trim();
+        const consignorId = document.getElementById('consignorId').value.trim();
+        
+        if (!auctionCode || !consignorId) {
+          alert('Please enter both Auction Code and Consignor ID.');
+          return;
+        }
+        
+        // Show loading state
+        document.getElementById('retrieveStatement').disabled = true;
+        document.getElementById('retrieveStatement').textContent = 'Loading...';
+        
+        // Fetch consignor data from API
+        fetchConsignorData(auctionCode, consignorId);
+      });
+    }
+    
+    // Function to send payment link via email
+    function sendPaymentLink(paymentFormUrl, email, name, auctionTitle) {
+      // Show loading state
+      const sendButton = event.target;
+      sendButton.disabled = true;
+      sendButton.textContent = 'Sending...';
+      
+      // Get the username from currentUser
+      const username = currentUser ? currentUser.username : 'Unknown';
+      
+      // Call the send-payment-link function
+      fetch('/.netlify/functions/send-payment-link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          paymentFormUrl,
+          email,
+          name,
+          auctionTitle,
+          sentBy: username
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to send payment link');
+        }
+        return response.json();
+      })
+      .then(data => {
+        // Show success message
+        document.getElementById('step-1').innerHTML = `
+          <div class="bg-white p-6 rounded-lg">
+            <div class="text-center mb-6">
+              <div class="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
+                <svg class="h-10 w-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+              </div>
+              <h2 class="text-2xl font-semibold text-primary mb-2">Payment Link Sent!</h2>
+              <p class="text-gray-600 mb-6">The payment form link has been sent to ${email}.</p>
+            </div>
+            
+            <div class="bg-gray-50 p-4 rounded-md mb-6">
+              <p class="text-sm text-gray-700 mb-2">You can also copy the payment link directly:</p>
+              <div class="flex">
+                <input 
+                  type="text" 
+                  value="${paymentFormUrl}" 
+                  readonly 
+                  class="flex-grow px-4 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
+                />
+                <button 
+                  onclick="copyPaymentUrl('${paymentFormUrl}')" 
+                  class="px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-r-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+            
+            <div class="flex justify-center">
+              <button 
+                onclick="resetForm()" 
+                class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
+              >
+                Generate Another Link
+              </button>
+            </div>
+          </div>
+        `;
+      })
+      .catch(error => {
+        console.error('Error sending payment link:', error);
+        alert('Failed to send payment link. Please try again.');
+        
+        // Reset button state
+        sendButton.disabled = false;
+        sendButton.textContent = 'Send Payment Link';
+      });
+    }
+    
+    // Function to fetch consignor data
+    function fetchConsignorData(auctionCode, consignorId) {
+      // Get the username and password from the current user session
+      if (!authToken || !currentUser) {
+        alert('Your session has expired. Please log in again.');
+        handleLogout();
+        return Promise.reject(new Error('Authentication required'));
+      }
+      
+      const username = currentUser.username;
+      const password = document.getElementById('password').value.trim();
+      
+      // Call the get-consignor-data function with credentials
+      return fetch('/.netlify/functions/get-consignor-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({
+          auctionCode,
+          consignorId,
+          username,
+          password
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to retrieve consignor data');
+        }
+        return response.json();
+      })
+      .then(consignorData => {
+        // Generate a unique payment form URL
+        const paymentFormUrl = generatePaymentFormUrl(auctionCode, consignorId);
+        
+        // Show confirmation dialog with consignor details
+        document.getElementById('step-1').innerHTML = `
+          <div class="bg-white p-6 rounded-lg">
+            <h2 class="text-xl font-semibold text-primary mb-6">Confirm Consignor Details</h2>
+            
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
+              <div class="flex">
+                <div class="flex-shrink-0">
+                  <svg class="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                  </svg>
+                </div>
+                <div class="ml-3">
+                  <p class="text-sm text-blue-800">
+                    <span class="font-medium">Please verify:</span> The following information will be used to generate a payment form link for the consignor. The link will be sent directly to the consignor's email address.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="bg-gray-50 p-4 rounded-md mb-6">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p class="text-sm text-gray-500">Consignor Name:</p>
+                  <p class="font-medium text-gray-800">${consignorData.name}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-500">Consignor Email:</p>
+                  <p class="font-medium text-gray-800">${consignorData.email}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-500">Auction:</p>
+                  <p class="font-medium text-gray-800">${consignorData.auctionTitle}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-500">Statement Date:</p>
+                  <p class="font-medium text-gray-800">${consignorData.statementDate}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-500">Total Amount Due:</p>
+                  <p class="font-medium text-primary text-lg">${consignorData.totalDue}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-500">Auction Code:</p>
+                  <p class="font-medium text-gray-800">${auctionCode}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-500">Consignor ID:</p>
+                  <p class="font-medium text-gray-800">${consignorId}</p>
+                </div>
+                <div>
+                  <p class="text-sm text-gray-500">Retrieved By:</p>
+                  <p class="font-medium text-gray-800">${consignorData.fetchedBy || username}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row justify-end gap-4">
+              <button onclick="resetForm()" class="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
+                Cancel
+              </button>
+              <button onclick="sendPaymentLink('${paymentFormUrl}', '${consignorData.email}', '${consignorData.name}', '${consignorData.auctionTitle}')" class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors">
+                Send Payment Link
+              </button>
+              <button onclick="copyPaymentUrl('${paymentFormUrl}')" class="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
+                Copy Payment URL
+              </button>
+            </div>
+          </div>
+        `;
+        
+        return consignorData;
+      })
+      .catch(error => {
+        console.error('Error fetching consignor data:', error);
+        alert(error.message || 'Failed to retrieve consignor data. Please try again.');
+        
+        // Reset button state
+        const retrieveButton = document.getElementById('retrieveStatement');
+        if (retrieveButton) {
+          retrieveButton.disabled = false;
+          retrieveButton.textContent = 'Generate Payment Form';
+        }
+        
+        return Promise.reject(error);
+      });
+    }
+    
+    // Function to fetch statement data for consignor form
+    function fetchStatementData(auctionCode, consignorId) {
+      // Show loading state in the statement details section
+      document.getElementById('consignor-name').textContent = 'Loading...';
+      document.getElementById('auction-title').textContent = 'Loading...';
+      document.getElementById('statement-date').textContent = 'Loading...';
+      document.getElementById('total-due').textContent = 'Loading...';
+      
+      // For consignor access via URL token, we don't need authentication
+      // This is a separate endpoint that doesn't require MAC staff credentials
+      fetch(`/.netlify/functions/get-consignor-data?auctionCode=${auctionCode}&consignorId=${consignorId}`, {
+        method: 'GET'
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Failed to retrieve statement data');
+        }
+        return response.json();
+      })
+      .then(data => {
+        // Populate statement details with real data
+        document.getElementById('consignor-name').textContent = data.name;
+        document.getElementById('auction-title').textContent = data.auctionTitle;
+        document.getElementById('statement-date').textContent = data.statementDate;
+        document.getElementById('total-due').textContent = data.totalDue;
+      })
+      .catch(error => {
+        console.error('Error fetching statement data:', error);
+        document.getElementById('consignor-name').textContent = 'Error loading data';
+        document.getElementById('auction-title').textContent = 'Error loading data';
+        document.getElementById('statement-date').textContent = 'Error loading data';
+        document.getElementById('total-due').textContent = 'Error loading data';
+        
+        // Show error message to user
+        alert('Failed to load statement data. Please contact McLemore Auction Company for assistance.');
+      });
+    }
+    
     // Add event listeners to all form fields
     document.addEventListener('DOMContentLoaded', function() {
       // Check if user is already authenticated
@@ -603,103 +1017,33 @@
         // Initial progress calculation
         updateProgressBar();
       }
-
-      // Handle the Generate Payment Form button
-      document.getElementById('retrieveStatement').addEventListener('click', function() {
-        const auctionCode = document.getElementById('auctionCode').value.trim();
-        const consignorId = document.getElementById('consignorId').value.trim();
-        
-        if (!auctionCode || !consignorId) {
-          alert('Please enter both Auction Code and Consignor ID.');
-          return;
-        }
-        
-        // Show loading state
-        document.getElementById('retrieveStatement').disabled = true;
-        document.getElementById('retrieveStatement').textContent = 'Loading...';
-        
-        // Fetch consignor data from API
-        fetchConsignorData(auctionCode, consignorId)
-          .then(consignorData => {
-            // Generate a unique payment form URL
-            const paymentFormUrl = generatePaymentFormUrl(auctionCode, consignorId);
-            
-            // Show confirmation dialog with consignor details
-            document.getElementById('step-1').innerHTML = `
-              <div class="bg-white p-6 rounded-lg">
-                <h2 class="text-xl font-semibold text-primary mb-6">Confirm Consignor Details</h2>
-                
-                <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
-                  <div class="flex">
-                    <div class="flex-shrink-0">
-                      <svg class="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                      </svg>
-                    </div>
-                    <div class="ml-3">
-                      <p class="text-sm text-blue-800">
-                        <span class="font-medium">Please verify:</span> The following information will be used to generate a payment form link for the consignor. The link will be sent directly to the consignor's email address.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="bg-gray-50 p-4 rounded-md mb-6">
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p class="text-sm text-gray-500">Consignor Name:</p>
-                      <p class="font-medium text-gray-800">${consignorData.name}</p>
-                    </div>
-                    <div>
-                      <p class="text-sm text-gray-500">Consignor Email:</p>
-                      <p class="font-medium text-gray-800">${consignorData.email}</p>
-                    </div>
-                    <div>
-                      <p class="text-sm text-gray-500">Auction:</p>
-                      <p class="font-medium text-gray-800">${consignorData.auctionTitle}</p>
-                    </div>
-                    <div>
-                      <p class="text-sm text-gray-500">Statement Date:</p>
-                      <p class="font-medium text-gray-800">${consignorData.statementDate}</p>
-                    </div>
-                    <div>
-                      <p class="text-sm text-gray-500">Total Amount Due:</p>
-                      <p class="font-medium text-primary text-lg">${consignorData.totalDue}</p>
-                    </div>
-                    <div>
-                      <p class="text-sm text-gray-500">Auction Code:</p>
-                      <p class="font-medium text-gray-800">${auctionCode}</p>
-                    </div>
-                    <div>
-                      <p class="text-sm text-gray-500">Consignor ID:</p>
-                      <p class="font-medium text-gray-800">${consignorId}</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="flex flex-col sm:flex-row justify-end gap-4">
-                  <button onclick="resetForm()" class="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
-                    Cancel
-                  </button>
-                  <button onclick="sendPaymentLink('${paymentFormUrl}', '${consignorData.email}', '${consignorData.name}', '${consignorData.auctionTitle}')" class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors">
-                    Send Payment Link
-                  </button>
-                  <button onclick="copyPaymentUrl('${paymentFormUrl}')" class="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
-                    Copy Payment URL
-                  </button>
-                </div>
-              </div>
-            `;
-          })
-          .catch(error => {
-            console.error('Error fetching consignor data:', error);
-            alert(error.message || 'Failed to retrieve consignor data. Please try again.');
-            
-            // Reset button state
-            document.getElementById('retrieveStatement').disabled = false;
-            document.getElementById('retrieveStatement').textContent = 'Generate Payment Form';
-          });
-      });
+      
+      // Add event listener to logout button
+      const logoutButton = document.getElementById('logout-button');
+      if (logoutButton) {
+        logoutButton.addEventListener('click', handleLogout);
+      }
+      
+      // Add event listener to retrieve statement button
+      const retrieveButton = document.getElementById('retrieveStatement');
+      if (retrieveButton) {
+        retrieveButton.addEventListener('click', function() {
+          const auctionCode = document.getElementById('auctionCode').value.trim();
+          const consignorId = document.getElementById('consignorId').value.trim();
+          
+          if (!auctionCode || !consignorId) {
+            alert('Please enter both Auction Code and Consignor ID.');
+            return;
+          }
+          
+          // Show loading state
+          retrieveButton.disabled = true;
+          retrieveButton.textContent = 'Loading...';
+          
+          // Fetch consignor data from API
+          fetchConsignorData(auctionCode, consignorId);
+        });
+      }
       
       // Add event listener for Enter key on login form
       document.getElementById('password').addEventListener('keypress', function(event) {
@@ -709,46 +1053,6 @@
         }
       });
     });
-    
-    // Function to fetch statement data for consignor form
-    function fetchStatementData(auctionCode, consignorId) {
-      // Show loading state in the statement details section
-      document.getElementById('consignor-name').textContent = 'Loading...';
-      document.getElementById('auction-title').textContent = 'Loading...';
-      document.getElementById('statement-date').textContent = 'Loading...';
-      document.getElementById('total-due').textContent = 'Loading...';
-      
-      // Fetch data from API or use token-based access for consignors
-      fetch(`/.netlify/functions/get-consignor-data?auctionCode=${auctionCode}&consignorId=${consignorId}`, {
-        method: 'GET',
-        headers: {
-          // No auth token needed for consignor access via URL token
-        }
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Failed to retrieve statement data');
-        }
-        return response.json();
-      })
-      .then(data => {
-        // Populate statement details with real data
-        document.getElementById('consignor-name').textContent = data.name;
-        document.getElementById('auction-title').textContent = data.auctionTitle;
-        document.getElementById('statement-date').textContent = data.statementDate;
-        document.getElementById('total-due').textContent = data.totalDue;
-      })
-      .catch(error => {
-        console.error('Error fetching statement data:', error);
-        document.getElementById('consignor-name').textContent = 'Error loading data';
-        document.getElementById('auction-title').textContent = 'Error loading data';
-        document.getElementById('statement-date').textContent = 'Error loading data';
-        document.getElementById('total-due').textContent = 'Error loading data';
-        
-        // Show error message to user
-        alert('Failed to load statement data. Please contact McLemore Auction Company for assistance.');
-      });
-    }
   </script>
 </body>
 </html>
