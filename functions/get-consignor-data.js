@@ -77,7 +77,7 @@ exports.handler = async function(event, context) {
     
     try {
       console.log('Step 1: Fetching login page directly...');
-      const loginPageResponse = await session.get('/admin/login', {
+      const loginPageResponse = await session.get('/login', {
         headers: {
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Content-Type': 'text/html'
@@ -129,7 +129,7 @@ exports.handler = async function(event, context) {
       }
       
       // Extract form action and method
-      const formAction = loginForm.attr('action') || '/admin/login';
+      const formAction = loginForm.attr('action') || '/login';
       const formMethod = loginForm.attr('method') || 'post';
       console.log(`Using form action: ${formAction}, method: ${formMethod}`);
       
@@ -162,7 +162,7 @@ exports.handler = async function(event, context) {
       const loginFormResponse = await session.post(formAction, formData, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Referer': 'https://www.mclemoreauction.com/admin/login'
+          'Referer': 'https://www.mclemoreauction.com/login'
         },
         maxRedirects: 5,
         validateStatus: status => status < 400 // Accept any successful status
@@ -207,7 +207,11 @@ exports.handler = async function(event, context) {
         `/admin/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`,
         `/admin/statements/printreport/${auctionCode}/${consignorId}`,
         `/admin/statements/view/auction/${auctionCode}/sellerid/${consignorId}`,
-        `/admin/statements/view/${auctionCode}/${consignorId}`
+        `/admin/statements/view/${auctionCode}/${consignorId}`,
+        `/statements/printreport/auction/${auctionCode}/sellerid/${consignorId}`,
+        `/statements/view/auction/${auctionCode}/sellerid/${consignorId}`,
+        `/statements/printreport/${auctionCode}/${consignorId}`,
+        `/statements/view/${auctionCode}/${consignorId}`
       ];
       
       let statementData = null;
