@@ -28,8 +28,8 @@ exports.handler = async function(event, context) {
     };
   }
 
-  // Extract auction code and consignor ID from request
-  const { auctionCode, consignorId } = requestBody;
+  // Extract parameters from request
+  const { auctionCode, consignorId, username, password } = requestBody;
 
   // Validate required parameters
   if (!auctionCode || !consignorId) {
@@ -38,10 +38,18 @@ exports.handler = async function(event, context) {
       body: JSON.stringify({ error: 'Missing required parameters: auctionCode and consignorId' })
     };
   }
+  
+  // Validate credentials
+  if (!username || !password) {
+    return {
+      statusCode: 401,
+      body: JSON.stringify({ error: 'Admin credentials are required' })
+    };
+  }
 
   try {
     // Get consignor data
-    const consignorData = await getConsignorData(auctionCode, consignorId);
+    const consignorData = await getConsignorData(auctionCode, consignorId, username, password);
 
     return {
       statusCode: 200,
@@ -63,15 +71,17 @@ exports.handler = async function(event, context) {
 /**
  * Gets consignor data from the McLemore Auction admin system
  * @param {string} auctionCode - The auction code
- * @param {string} consignorId - The consignor ID
+ * @param {string} consignorId - The consignor ID (seller ID)
+ * @param {string} username - Admin username
+ * @param {string} password - Admin password
  * @returns {Promise<Object>} - The consignor data
  */
-async function getConsignorData(auctionCode, consignorId) {
+async function getConsignorData(auctionCode, consignorId, username, password) {
   try {
-    console.log('Fetching consignor data for auction:', auctionCode, 'consignor:', consignorId);
+    console.log('Fetching consignor data for auction:', auctionCode, 'seller ID:', consignorId);
     
     // Fetch the statement HTML
-    const statementHtml = await fetchStatementHtml(auctionCode, consignorId);
+    const statementHtml = await fetchStatementHtml(auctionCode, consignorId, username, password);
     
     // Load the HTML into cheerio for parsing
     const $ = cheerio.load(statementHtml);
@@ -218,18 +228,17 @@ async function getConsignorData(auctionCode, consignorId) {
  * Fetches the statement HTML from the McLemore Auction admin system
  * @param {string} auctionCode - The auction code
  * @param {string} consignorId - The consignor ID (seller ID)
+ * @param {string} username - Admin username
+ * @param {string} password - Admin password
  * @returns {Promise<string>} - The statement HTML
  */
-async function fetchStatementHtml(auctionCode, consignorId) {
+async function fetchStatementHtml(auctionCode, consignorId, username, password) {
   try {
     console.log('Fetching statement HTML for auction:', auctionCode, 'seller ID:', consignorId);
     
-    // Get credentials from environment variables
-    const username = process.env.ADMIN_USERNAME;
-    const password = process.env.ADMIN_PASSWORD;
-    
+    // Validate credentials
     if (!username || !password) {
-      throw new Error('Admin credentials not found in environment variables');
+      throw new Error('Admin credentials are required');
     }
     
     // Create a session to maintain cookies
