@@ -1,0 +1,17 @@
+{
+  "name": "mclemore-payment-form",
+  "version": "1.0.0",
+  "description": "McLemore Auction payment form system",
+  "main": "index.html",
+  "dependencies": {
+    "axios": "^1.6.2",
+    "cheerio": "^1.0.0-rc.12",
+    "nodemailer": "^6.9.7"
+  },
+  "scripts": {
+    "start": "netlify dev"
+  },
+  "author": "McLemore Auction Company",
+  "license": "UNLICENSED",
+  "private": true
+}

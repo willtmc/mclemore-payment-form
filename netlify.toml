@@ -3,6 +3,10 @@
   functions = "functions"
   command = ""
 
+# Add the Netlify Functions Install Core plugin
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
+
 # Redirect all URLs to index.html for client-side routing
 [[redirects]]
   from = "/*"
