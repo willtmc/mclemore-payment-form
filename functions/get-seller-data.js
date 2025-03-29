@@ -250,30 +250,37 @@ async function fetchStatementHtml(auctionCode, sellerId, username, password) {
       maxRedirects: 5
     });
     
-    // Step 1: Login to the admin system
-    console.log('Logging in to admin system...');
+    // Step 1: Get the login page first
+    console.log('Getting login page...');
+    const loginPageResponse = await session.get('https://www.mclemoreauction.com/admin/login');
+    console.log('Login page status:', loginPageResponse.status);
+    
+    // Step 2: Submit login form
+    console.log('Submitting login form...');
     const loginResponse = await session.post('https://www.mclemoreauction.com/admin/login', 
-      `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, 
+      {
+        username: username,
+        password: password,
+        submit: 'Login'
+      },
       {
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        // Optionally, set a reasonable timeout
-        timeout: 15000 // 15 seconds
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Referer': 'https://www.mclemoreauction.com/admin/login'
+        }
       }
     );
     
     console.log('Login response status:', loginResponse.status);
-    // --- Added Logging --- 
-    console.log('Login response headers:', JSON.stringify(loginResponse.headers, null, 2)); 
-    // Log first 500 chars of login response data to check for errors
-    console.log('Login response data (start):', loginResponse.data ? loginResponse.data.substring(0, 500) : 'No data'); 
-    // Log cookies from the session after login attempt
-    const cookies = session.defaults.jar ? session.defaults.jar.getCookieStringSync(loginResponse.config.url) : 'Cookie jar not available';
-    console.log('Session cookies after login attempt:', cookies);
-    // --- End Added Logging ---
+    console.log('Login response headers:', JSON.stringify(loginResponse.headers, null, 2));
+    console.log('Login response data (start):', loginResponse.data ? loginResponse.data.substring(0, 500) : 'No data');
     
-    // Step 2: Fetch the statement
+    // Check if login was successful by looking for error messages or redirects
+    if (loginResponse.data && loginResponse.data.includes('Invalid username or password')) {
+      throw new Error('Invalid admin credentials');
+    }
+    
+    // Step 3: Fetch the statement
     const statementUrl = `https://www.mclemoreauction.com/admin/statements/printreport/auction/${auctionCode}/sellerid/${sellerId}`;
     console.log('Fetching statement URL:', statementUrl);
     
