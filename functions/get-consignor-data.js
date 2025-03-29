@@ -329,27 +329,40 @@ async function getConsignorData(event, context) {
       'div.contact-info', 'div.email'
     ];
     
+    // First try to extract email from the HTML
     for (const selector of emailSelectors) {
-      const element = statement$(selector);
-      if (element.length > 0) {
-        let text;
+      const elements = statement$(selector);
+      if (elements.length > 0) {
+        elements.each((i, el) => {
+          const element = statement$(el);
+          let text;
+          
+          // Special handling for mailto links
+          if (selector === 'a[href^="mailto:"]') {
+            const href = element.attr('href');
+            text = href ? href.replace('mailto:', '') : element.text().trim();
+          } else {
+            text = element.text().trim();
+          }
+          
+          // Extract email using regex
+          const emailMatch = text.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/);
+          if (emailMatch) {
+            consignorEmail = emailMatch[0];
+            console.log(`Found consignor email using selector ${selector}: ${consignorEmail}`);
+            return false; // Break the each loop
+          }
+        });
         
-        // Special handling for mailto links
-        if (selector === 'a[href^="mailto:"]') {
-          const href = element.attr('href');
-          text = href ? href.replace('mailto:', '') : element.text().trim();
-        } else {
-          text = element.text().trim();
-        }
-        
-        // Extract email using regex
-        const emailMatch = text.match(/[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}/);
-        if (emailMatch) {
-          consignorEmail = emailMatch[0];
-          console.log(`Found consignor email using selector ${selector}: ${consignorEmail}`);
-          break;
-        }
+        if (consignorEmail) break; // Break the selector loop if email found
       }
+    }
+    
+    // If email not found in HTML, try to construct it from consignor ID
+    if (!consignorEmail && consignorId) {
+      // Format: consignorId@mclemoreauction.com
+      consignorEmail = `${consignorId}@mclemoreauction.com`;
+      console.log(`Generated email from consignor ID: ${consignorEmail}`);
     }
     
     // Extract auction title
