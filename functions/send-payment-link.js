@@ -117,8 +117,9 @@ async function sendEmail(consignorName, consignorEmail, paymentFormUrl, auctionT
   }
 
   const mailOptions = {
-    from: process.env.EMAIL_FROM || `McLemore Auction <${process.env.EMAIL_USER}>`,
+    from: `"McLemore Auction Payment" <${process.env.EMAIL_USER}>`,
     to: consignorEmail,
+    replyTo: process.env.EMAIL_USER,
     subject: 'McLemore Auction Payment Form',
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
