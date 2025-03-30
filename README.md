@@ -44,35 +44,34 @@ This application implements a secure two-user workflow for collecting payment in
   - Form validation to ensure required information is provided
   - Success page with confirmation message and next steps
 
-## Current Status (As of [Date - e.g., Mar 30, 2025])
+## Current Status (As of [Date - e.g., Mar 31, 2025])
 
-Implemented core staff workflow using JWTs for stateless sessions and successfully tested locally:
+**Production Ready & Tested!**
 
+*   Implemented core staff workflow using JWTs for stateless sessions.
 *   Staff Authentication (JWT).
-*   Data Scraping (Seller Name, Auction Title, Amount Due, Seller Email).
+*   Data Scraping (Seller Name, Auction Title, Amount Due, Seller Email, Statement Date).
 *   Secure Link Generation & Sending (using `sellerDataToken` JWT).
 *   Seller Data Retrieval (verifying `sellerDataToken` JWT).
-*   Frontend Logic (handling staff JWT, seller JWT link).
+*   Frontend Logic (handling staff JWT, seller JWT link, form interactions).
+*   Netlify Forms configured for data submission and internal email notifications.
+*   Success page (`success.html`) implemented.
 
-**Successfully Tested Locally (`netlify dev`):**
+**Successfully Tested in Production:**
 
 *   Staff login (JWT flow).
 *   Generation of payment links (correctly scraping, creating seller JWT, sending email).
-*   **Core functionality verified.**
+*   Seller form population via email link.
+*   Seller form submission (both manual and file upload) successfully captured by Netlify Forms.
+*   Redirection to success page after submission.
+*   Netlify Form email notifications working.
 
-## Next Steps / Outstanding Items
+## Optional Future Improvements
 
-1.  **Deployment for Full Testing:** Deploy to Netlify (Production recommended for final testing) to enable external access and form submission testing.
-2.  **Seller Form Testing (Resume Here - Post-Deployment):**
-    *   Click the link sent to the seller's email (using the *deployed* site URL).
-    *   Verify seller data populates the form correctly.
-    *   Test submitting the form via both "Upload Check" and "Manual Entry".
-    *   Check Netlify Forms dashboard for successful submission capture.
-    *   Verify redirection to `/success.html` (ensure page exists).
-3.  **Create `success.html`:** Add a simple success page for the form redirect.
-4.  **Error Handling/Robustness:** Review and potentially enhance scraping error handling.
-5.  **Security Review:** Review JWT expiry settings, secret management.
-6.  **Tailwind CSS:** Address CDN warning by setting up Tailwind CLI or PostCSS.
+1.  **Error Handling/Robustness:** Further enhance scraping logic to be more resilient to minor changes in the `mclemoreauction.com` report page HTML structure.
+2.  **Security Review:** Periodically review JWT expiry settings and ensure the `JWT_SECRET` is kept secure.
+3.  **Tailwind CSS Build:** Implement Tailwind CLI or PostCSS build process to replace the CDN link for production builds, improving performance and reliability.
+4.  **UI/UX Refinements:** Add loading spinners, improve visual feedback, potentially add more input validation.
 
 ## Testing Locally
 
@@ -95,6 +94,14 @@ This application is designed to be deployed to Netlify for full functionality:
 3. Choose your repository and configure build settings
 4. Deploy the site
 5. Set up a custom domain if desired
+
+**Environment Variables Required in Netlify UI:**
+
+*   `JWT_SECRET`
+*   `EMAIL_USER`
+*   `EMAIL_PASS`
+*   `EMAIL_SERVICE` (Optional, defaults to 'gmail')
+*   `EMAIL_FROM` (Optional)
 
 ## Production Implementation
 

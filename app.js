@@ -304,7 +304,6 @@ document.addEventListener('DOMContentLoaded', () => {
              paymentSubmitButton.disabled = true;
              paymentSubmitButton.textContent = 'Submitting...';
         }
-        console.log("Default form submission to Netlify should proceed now.");
     }
 
 
