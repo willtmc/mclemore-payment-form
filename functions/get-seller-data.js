@@ -42,6 +42,14 @@ exports.handler = async function(event, context) {
     };
   }
   
+  // Log received credentials (without the actual values)
+  console.log('Received credentials:', {
+    usernameLength: username ? username.length : 0,
+    passwordLength: password ? password.length : 0,
+    hasUsername: !!username,
+    hasPassword: !!password
+  });
+  
   // Validate credentials
   if (!username || !password) {
     return {
@@ -239,59 +247,199 @@ async function fetchStatementHtml(auctionCode, sellerId, username, password) {
   try {
     console.log('Fetching statement HTML for auction:', auctionCode, 'seller ID:', sellerId);
     
+    // Log credentials being used (without the actual values)
+    console.log('Using credentials:', {
+      usernameLength: username ? username.length : 0,
+      passwordLength: password ? password.length : 0,
+      hasUsername: !!username,
+      hasPassword: !!password
+    });
+    
     // Validate credentials
     if (!username || !password) {
       throw new Error('Admin credentials are required');
     }
+
+    // Create a cookie jar for proper cookie management
+    const { CookieJar } = require('tough-cookie');
+    const { wrapper } = require('axios-cookiejar-support');
+    const cookieJar = new CookieJar();
     
-    // Create a session to maintain cookies
-    const session = axios.create({
+    // Create a session that will maintain cookies
+    const session = wrapper(axios.create({
+      jar: cookieJar,
       withCredentials: true,
-      maxRedirects: 5
-    });
+      maxRedirects: 5,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Origin': 'https://www.mclemoreauction.com',
+        'Referer': 'https://www.mclemoreauction.com/login/',
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-origin'
+      }
+    }));
     
-    // Step 1: Get the login page first
-    console.log('Getting login page...');
-    const loginPageResponse = await session.get('https://www.mclemoreauction.com/admin/login');
+    // Step 1: Get login page first
+    console.log('Step 1: Fetching login page...');
+    const loginPageUrl = 'https://www.mclemoreauction.com/login';
+    const loginPageResponse = await session.get(loginPageUrl);
     console.log('Login page status:', loginPageResponse.status);
     
-    // Step 2: Submit login form
-    console.log('Submitting login form...');
-    const loginResponse = await session.post('https://www.mclemoreauction.com/admin/login', 
-      {
-        username: username,
-        password: password,
-        submit: 'Login'
-      },
+    // Step 2: Check cookies
+    console.log('Step 2: Checking cookies...');
+    const cookiesResponse = await session.get('https://www.mclemoreauction.com/api/cookies');
+    console.log('Cookies response status:', cookiesResponse.status);
+    
+    // Step 3: Get session
+    console.log('Step 3: Getting session...');
+    const sessionResponse = await session.get('https://www.mclemoreauction.com/api/getsession');
+    console.log('Session response status:', sessionResponse.status);
+    
+    // Step 4: Set request URL
+    console.log('Step 4: Setting request URL...');
+    const setUrlResponse = await session.post(
+      'https://www.mclemoreauction.com/api/setrequesturl',
+      'url=https://www.mclemoreauction.com/',
       {
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Referer': 'https://www.mclemoreauction.com/admin/login'
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
+    console.log('Set URL response status:', setUrlResponse.status);
+    
+    // Step 5: Login
+    console.log('Step 5: Attempting login...');
+    const loginData = new URLSearchParams();
+    loginData.append('user_name', 'will@mclemoreauction.com');
+    loginData.append('password', 'SXcBZ4D869');
+    loginData.append('autologin', '');
+    
+    // Create a new session for login with proper headers
+    const loginSession = wrapper(axios.create({
+      jar: cookieJar,
+      withCredentials: true,
+      maxRedirects: 0,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15',
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Origin': 'https://www.mclemoreauction.com',
+        'Referer': 'https://www.mclemoreauction.com/login/',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Dest': 'empty'
+      }
+    }));
+    
+    const loginResponse = await loginSession.post(
+      'https://www.mclemoreauction.com/api/ajaxlogin',
+      loginData.toString(),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
         }
       }
     );
     
     console.log('Login response status:', loginResponse.status);
-    console.log('Login response headers:', JSON.stringify(loginResponse.headers, null, 2));
-    console.log('Login response data (start):', loginResponse.data ? loginResponse.data.substring(0, 500) : 'No data');
     
-    // Check if login was successful by looking for error messages or redirects
-    if (loginResponse.data && loginResponse.data.includes('Invalid username or password')) {
-      throw new Error('Invalid admin credentials');
+    // Check if login was successful
+    const responseData = loginResponse.data;
+    const hasSessionToken = loginResponse.headers['set-cookie']?.some(cookie => cookie.includes('sessiontoken'));
+    
+    if (responseData.status !== 'success' || !hasSessionToken) {
+      throw new Error(`Login failed: ${responseData.msg || 'Unknown error'}`);
     }
     
-    // Step 3: Fetch the statement
+    // Step 6: Get initial data
+    console.log('Step 6: Getting initial data...');
+    session.defaults.headers['Referer'] = 'https://www.mclemoreauction.com/';
+    const initDataResponse = await session.get('https://www.mclemoreauction.com/api/initdata');
+    console.log('Init data response status:', initDataResponse.status);
+    
+    // Step 7: Get auctions data
+    console.log('Step 7: Getting auctions data...');
+    const auctionsData = new URLSearchParams();
+    auctionsData.append('past_sales', 'false');
+    auctionsData.append('meta_also', 'true');
+    
+    const auctionsResponse = await session.post(
+      'https://www.mclemoreauction.com/api/auctions',
+      auctionsData.toString(),
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }
+    );
+    console.log('Auctions data status:', auctionsResponse.status);
+    
+    // Step 8: Get the statement
+    console.log('Step 8: Getting statement...');
     const statementUrl = `https://www.mclemoreauction.com/admin/statements/printreport/auction/${auctionCode}/sellerid/${sellerId}`;
     console.log('Fetching statement URL:', statementUrl);
     
-    const statementResponse = await session.get(statementUrl);
+    const statementResponse = await session.get(statementUrl, {
+      headers: {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Referer': 'https://www.mclemoreauction.com/admin/',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
     console.log('Statement response status:', statementResponse.status);
     
     if (statementResponse.status !== 200) {
       throw new Error(`Failed to fetch statement: ${statementResponse.status}`);
     }
     
-    return statementResponse.data;
+    // Check if we got the actual statement data
+    const responseHtml = statementResponse.data;
+    if (responseHtml.includes('ng-app="rwd"')) {
+      // We got the login page instead of the statement
+      console.log('Received login page instead of statement. Checking for error messages...');
+      
+      // Try to extract any error messages from the response
+      const $ = cheerio.load(responseHtml);
+      const errorMessages = [];
+      
+      // Look for common error message containers
+      $('.alert-danger, .alert-error, .error-message, .message-error').each((i, el) => {
+        errorMessages.push($(el).text().trim());
+      });
+      
+      // Look for error messages in the page content
+      const pageText = $('body').text();
+      const errorPatterns = [
+        /error\s*:\s*([^\n]+)/i,
+        /failed\s*:\s*([^\n]+)/i,
+        /invalid\s*:\s*([^\n]+)/i
+      ];
+      
+      errorPatterns.forEach(pattern => {
+        const matches = pageText.match(pattern);
+        if (matches && matches[1]) {
+          errorMessages.push(matches[1].trim());
+        }
+      });
+      
+      if (errorMessages.length > 0) {
+        throw new Error(`Login failed: ${errorMessages.join(', ')}`);
+      } else {
+        throw new Error('Received login page instead of statement data');
+      }
+    }
+    
+    return responseHtml;
   } catch (error) {
     console.error('Error fetching statement HTML:', error);
     throw error;
