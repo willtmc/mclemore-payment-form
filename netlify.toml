@@ -7,12 +7,6 @@
 [[plugins]]
   package = "@netlify/plugin-functions-install-core"
 
-# Redirect all URLs to index.html for client-side routing
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
 # Handle form submissions
 [build.processing.html]
   pretty_urls = true
