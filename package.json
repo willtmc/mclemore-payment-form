@@ -11,6 +11,9 @@
     "nodemailer": "^6.10.0",
     "tough-cookie": "^5.1.2"
   },
+  "devDependencies": {
+    "jsonwebtoken": "^9.0.2"
+  },
   "scripts": {
     "start": "netlify dev"
   },

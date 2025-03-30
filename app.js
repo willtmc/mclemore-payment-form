@@ -174,15 +174,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         callApi('AUTHENTICATE', 'POST', { username, password })
             .then(data => {
-                if (data.staffSessionId) {
-                    console.log("Login successful, storing session ID");
-                    sessionStorage.setItem(C.STORAGE_KEYS.AUTH_TOKEN, data.staffSessionId);
-                    // Clear password field after successful login attempt
+                if (data.staffAuthToken) {
+                    console.log("Login successful, storing staff auth token (JWT)");
+                    sessionStorage.setItem(C.STORAGE_KEYS.AUTH_TOKEN, data.staffAuthToken);
                     if(passwordInput) passwordInput.value = '';
-                    initApp(); // Re-initialize view based on new state
+                    initApp();
                 } else {
-                     // This case should ideally be handled by callApi throwing an error
-                     throw new Error("Authentication failed: No session ID returned.");
+                     throw new Error("Authentication failed: No session token returned.");
                 }
             })
             .catch(error => {
@@ -216,8 +214,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const staffSessionId = sessionStorage.getItem(C.STORAGE_KEYS.AUTH_TOKEN);
-        if (!staffSessionId) {
+        const staffAuthToken = sessionStorage.getItem(C.STORAGE_KEYS.AUTH_TOKEN);
+        if (!staffAuthToken) {
             displayMessage(null, generateLinkMessage, "Your session has expired. Please log out and log back in.", true);
             handleLogout();
             return;
@@ -235,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
         generateLinkButton.textContent = 'Generating...';
 
         const requestData = {
-            staffSessionId,
+            staffAuthToken,
             auctionCode,
             sellerId
         };
@@ -248,12 +246,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if(sellerIdInput) sellerIdInput.value = '';
             })
             .catch(error => {
-                 // Check if it's a session error message from the backend
-                 if (error.message.includes("staff session")) {
-                     displayMessage(null, generateLinkMessage, "Session expired. Please log in again.", true);
+                 // Check if error indicates JWT issue
+                 if (error.message.includes("session token")) { 
+                     displayMessage(null, generateLinkMessage, "Session expired or invalid. Please log in again.", true);
                      handleLogout(); // Force logout
                  } else {
-                     // Display other errors normally
                      displayMessage(null, generateLinkMessage, `Error: ${error.message}`, true);
                  }
             })
@@ -321,7 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Initializing App View...");
         const urlParams = new URLSearchParams(window.location.search);
         const sellerToken = urlParams.get(C.URL_PARAMS.TOKEN);
-        const staffSessionId = sessionStorage.getItem(C.STORAGE_KEYS.AUTH_TOKEN);
+        const staffAuthToken = sessionStorage.getItem(C.STORAGE_KEYS.AUTH_TOKEN);
 
         // --- Reset View State ---
         hideElement(loginForm);
@@ -343,7 +340,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Determine View based on State ---
         if (sellerToken) {
             // --- Seller View ---
-            console.log("Seller token found:", sellerToken);
+            console.log("Seller data token (JWT) found:", sellerToken);
             showElement(paymentFormStep);
              // Use the specific message element for the payment form area
             displayMessage(null, paymentFormMessage, "Loading payment details...", false);
@@ -394,15 +391,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     if(paymentSubmitButton) hideElement(paymentSubmitButton); // Hide submit button too
                 });
 
-        } else if (staffSessionId) {
+        } else if (staffAuthToken) {
             // --- Staff Logged-In View ---
-            console.log("Staff session ID found.");
+            console.log("Staff auth token (JWT) found.");
             showElement(staffFormStep);
              // Optionally clear generate form fields on showing this step?
              // if(auctionCodeInput) auctionCodeInput.value = ''; etc.
         } else {
             // --- Staff Logged-Out View ---
-            console.log("No token or session ID. Showing login.");
+            console.log("No seller token or staff auth token. Showing login.");
             showElement(loginForm);
         }
     }

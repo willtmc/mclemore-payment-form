@@ -5,18 +5,24 @@ const { wrapper } = require('axios-cookiejar-support');
 const { CookieJar } = require('tough-cookie');
 const crypto = require('crypto');
 const querystring = require('querystring'); // For application/x-www-form-urlencoded
+const jwt = require('jsonwebtoken'); // Import jsonwebtoken
 
-// Simple in-memory cache for storing mclemoreauction.com session cookies associated with our app's staff session ID
-// WARNING: This is not suitable for production due to the potentially stateless nature of serverless functions
-// and lack of scaling support. Consider using a persistent store (e.g., Redis, FaunaDB)
-// or returning signed session info (JWT) to the client for production use.
-const staffSessionCache = {};
+// REMOVED In-memory cache
+// const staffSessionCache = {};
 
-// Base URL and Login URL from Python script analysis
+// Base URL and Login URL
 const BASE_URL = "https://www.mclemoreauction.com";
 const LOGIN_URL = `${BASE_URL}/api/ajaxlogin`;
 
+// Get JWT secret from environment variables
+const JWT_SECRET = process.env.JWT_SECRET;
+
 exports.handler = async (event) => {
+    if (!JWT_SECRET) {
+        console.error("FATAL: JWT_SECRET environment variable is not set.");
+        return { statusCode: 500, body: JSON.stringify({ message: 'Server configuration error.' }) };
+    }
+
     if (event.httpMethod !== 'POST') {
         return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
     }
@@ -166,25 +172,34 @@ exports.handler = async (event) => {
 
         // --- Handle Login Result ---
         if (loginSuccess) {
-            // Generate a unique session ID for our app's staff session
-            const staffSessionId = crypto.randomBytes(16).toString('hex');
+             // Extract necessary session cookies from the jar
+             // We need to serialize them to store in the JWT
+             const cookiesForJwt = await jar.getCookies(BASE_URL, { allPaths: true }); // Get all relevant cookies
+             // Filter for essential cookies if known (e.g., PHPSESSID, sessiontoken), otherwise take all
+             const essentialCookies = cookiesForJwt.filter(c => c.key === 'PHPSESSID' || c.key === 'sessiontoken'); // Adjust as needed
+             const serializableCookies = essentialCookies.map(cookie => cookie.toJSON());
+             
+             if (!serializableCookies || serializableCookies.length === 0) {
+                  console.error("Login seemed successful, but no essential cookies found in jar.");
+                  throw new Error("Authentication succeeded but failed to capture session state.");
+             }
 
-            // Store the cookie jar (containing the mclemore session cookies) in the cache
-            staffSessionCache[staffSessionId] = jar;
-            console.log(`Login successful for ${username}. Staff session ID created: ${staffSessionId}`);
+             console.log(`Login successful for ${username}. Creating staff auth token...`);
 
-            // Simple mechanism to clean up very old cache entries (improve for production)
-            if (Object.keys(staffSessionCache).length > 100) { 
-               const oldestKey = Object.keys(staffSessionCache)[0];
-               delete staffSessionCache[oldestKey];
-            }
+             // Create JWT payload containing the cookies
+             const payload = {
+                 cookies: serializableCookies
+             };
 
-            // Return the session ID to the client
-            return {
-                statusCode: 200,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ staffSessionId: staffSessionId })
-            };
+             // Sign the JWT - Set an expiry (e.g., 8 hours)
+             const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '8h' });
+
+             // Return the JWT (staffAuthToken) to the client
+             return {
+                 statusCode: 200,
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ staffAuthToken: token })
+             };
        } else {
             // Login failed (This part should ideally not be reached if validateStatus catches non-2xx)
             let errorMessage = 'Login failed. Invalid username or password, or unexpected response from server.';
@@ -238,6 +253,6 @@ exports.handler = async (event) => {
     }
 };
 
-// Export the cache and base URL for use in other functions
-module.exports.staffSessionCache = staffSessionCache;
-module.exports.BASE_URL = BASE_URL;
+// REMOVED cache export
+// module.exports.BASE_URL = BASE_URL; // BASE_URL might still be needed? Check other functions.
+exports.BASE_URL = BASE_URL; // Keep exporting BASE_URL if needed elsewhere
