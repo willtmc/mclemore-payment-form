@@ -46,32 +46,33 @@ This application implements a secure two-user workflow for collecting payment in
 
 ## Current Status (As of [Date - e.g., Mar 30, 2025])
 
-Development is currently paused after successfully implementing and testing the core staff workflow **using JWTs for stateless session management**:
+Implemented core staff workflow using JWTs for stateless sessions and successfully tested locally:
 
-*   Dependency Consolidation: Completed.
-*   Staff Authentication: Implemented function using JWTs. Returns `staffAuthToken` JWT containing session cookies.
-*   Data Scraping: Implemented robust logic to scrape Seller Name, Auction Title, Amount Due, and Seller Email.
-*   Secure Link Generation & Sending: Implemented function to verify `staffAuthToken`, reconstruct session, scrape data, create **`sellerDataToken` JWT** containing scraped data, and email link with this JWT to seller.
-*   Seller Data Retrieval: Implemented function to verify `sellerDataToken` JWT from URL and return seller data.
-*   Frontend Logic: Implemented frontend logic to handle JWT storage/sending for staff, and initial seller data fetching via JWT token.
+*   Staff Authentication (JWT).
+*   Data Scraping (Seller Name, Auction Title, Amount Due, Seller Email).
+*   Secure Link Generation & Sending (using `sellerDataToken` JWT).
+*   Seller Data Retrieval (verifying `sellerDataToken` JWT).
+*   Frontend Logic (handling staff JWT, seller JWT link).
 
 **Successfully Tested Locally (`netlify dev`):**
 
 *   Staff login (JWT flow).
 *   Generation of payment links (correctly scraping, creating seller JWT, sending email).
+*   **Core functionality verified.**
 
 ## Next Steps / Outstanding Items
 
-1.  **Deployment for Full Testing:** Deploy to Netlify (Deploy Preview or Production) to enable testing the seller workflow.
+1.  **Deployment for Full Testing:** Deploy to Netlify (Production recommended for final testing) to enable external access and form submission testing.
 2.  **Seller Form Testing (Resume Here - Post-Deployment):**
     *   Click the link sent to the seller's email (using the *deployed* site URL).
-    *   Verify seller data populates the form correctly by decoding the JWT.
+    *   Verify seller data populates the form correctly.
     *   Test submitting the form via both "Upload Check" and "Manual Entry".
-    *   Check Netlify Forms dashboard/logs for successful submission capture.
+    *   Check Netlify Forms dashboard for successful submission capture.
     *   Verify redirection to `/success.html` (ensure page exists).
-3.  **Error Handling/Robustness:** Enhance scraping error handling.
-4.  **Security Review:** Review JWT expiry settings, secret management.
-5.  **Tailwind CSS:** Address CDN warning.
+3.  **Create `success.html`:** Add a simple success page for the form redirect.
+4.  **Error Handling/Robustness:** Review and potentially enhance scraping error handling.
+5.  **Security Review:** Review JWT expiry settings, secret management.
+6.  **Tailwind CSS:** Address CDN warning by setting up Tailwind CLI or PostCSS.
 
 ## Testing Locally
 
