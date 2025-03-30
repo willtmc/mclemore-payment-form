@@ -60,12 +60,26 @@ async function fetchAndParseSellerData(jar, auctionCode, sellerId) {
     
     const sellerEmail = $('table#report-heading tr:nth-child(3) td:last-child a[href^="mailto:"]').text().trim();
 
+    // --- ADDED: Extract Statement Date ---
+    let statementDate = '';
+    const dateEmailTdHtml = $('table#report-heading tr:nth-child(3) td:last-child').html();
+    if (dateEmailTdHtml) {
+         // Split by <br>, take the first part, find the date after "Statement Date:"
+         const parts = dateEmailTdHtml.split(/<br\s*\/?>/i);
+         if (parts.length > 0) {
+             const dateMatch = parts[0].match(/Statement Date:\s*(\d{2}\/\d{2}\/\d{4})/);
+             if (dateMatch && dateMatch[1]) {
+                 statementDate = dateMatch[1].trim();
+             }
+         }
+    }
+
     const amountDue = parseFloat(amountDueText.replace(/[^\d.-]/g, ''));
 
-    // Final validation check
-    if (!sellerName || !auctionTitle || isNaN(amountDue) || !sellerEmail) {
+    // Final validation check (include statementDate)
+    if (!sellerName || !auctionTitle || isNaN(amountDue) || !sellerEmail || !statementDate) {
       console.warn("Validation Failed: Could not extract all required data points.");
-      console.warn(`Values - Name: '${sellerName}', Title: '${auctionTitle}', Amount Text: '${amountDueText}', Parsed Amount: ${amountDue}, Email: '${sellerEmail}'`);
+      console.warn(`Values - Name: '${sellerName}', Title: '${auctionTitle}', Amount Text: '${amountDueText}', Parsed Amount: ${amountDue}, Email: '${sellerEmail}', Date: '${statementDate}'`);
       throw new Error("Failed to parse required data from the seller report page.");
     }
 
@@ -73,8 +87,8 @@ async function fetchAndParseSellerData(jar, auctionCode, sellerId) {
       sellerName: sellerName,
       auctionDetails: auctionTitle,
       amountDue: amountDue,
-      sellerEmail: sellerEmail, // Include extracted email
-      // Add other fields as needed
+      sellerEmail: sellerEmail,
+      statementDate: statementDate // Include date
     };
 
     return extractedData;
@@ -187,13 +201,12 @@ exports.handler = async (event) => {
         }
         // --- END Post-Login Initialization Steps ---
 
-        // Step 3: Fetch and parse the seller data using the NOW FULLY INITIALIZED jar
+        // Step 3: Fetch and parse the seller data (now includes date)
         const sellerData = await fetchAndParseSellerData(jar, auctionCode, sellerId);
 
         // Step 4: Create a *new* JWT containing the seller data
         console.log("Creating seller data token...");
-        const sellerPayload = { ...sellerData }; // Payload is the scraped data
-        // Set a shorter expiry for the seller link token (e.g., 24 hours)
+        const sellerPayload = { ...sellerData }; // Payload now includes statementDate
         const sellerDataToken = jwt.sign(sellerPayload, JWT_SECRET, { expiresIn: '24h' }); 
         
         // Step 5: Construct the seller payment form URL with the JWT

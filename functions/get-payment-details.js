@@ -53,7 +53,7 @@ exports.handler = async (event) => {
                  sellerName: sellerData.sellerName,
                  auctionDetails: sellerData.auctionDetails,
                  amountDue: sellerData.amountDue,
-                 // Ensure all needed fields were included when signing the token
+                 statementDate: sellerData.statementDate // Return statement date
             })
         };
     } catch (err) {
