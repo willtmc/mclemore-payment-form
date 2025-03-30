@@ -316,8 +316,8 @@ async function fetchStatementHtml(auctionCode, sellerId, username, password) {
     // Step 5: Login
     console.log('Step 5: Attempting login...');
     const loginData = new URLSearchParams();
-    loginData.append('user_name', 'will@mclemoreauction.com');
-    loginData.append('password', 'SXcBZ4D869');
+    loginData.append('user_name', username);
+    loginData.append('password', password);
     loginData.append('autologin', '');
     
     // Create a new session for login with proper headers
