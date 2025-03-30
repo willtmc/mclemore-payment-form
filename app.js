@@ -44,7 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const entityNameInput = document.getElementById(C.ELEMENT_IDS.ENTITY_NAME_INPUT);
     const routingNumberInput = document.getElementById(C.ELEMENT_IDS.ROUTING_NUMBER_INPUT);
     const accountNumberInput = document.getElementById(C.ELEMENT_IDS.ACCOUNT_NUMBER_INPUT);
-    const accountTypeSelect = document.getElementById(C.ELEMENT_IDS.ACCOUNT_TYPE_SELECT);
     const termsAgreementCheckbox = document.getElementById(C.ELEMENT_IDS.TERMS_AGREEMENT_CHECKBOX);
     const paymentSubmitButton = paymentForm ? paymentForm.querySelector('button[type="submit"]') : null; // Get submit button
 
@@ -138,20 +137,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updatePaymentOptionView() {
          if (!optionCheckRadio || !optionManualRadio) return;
-
          const checkSelected = optionCheckRadio.checked;
          const manualSelected = optionManualRadio.checked;
 
-         // Toggle visibility
          checkSelected ? showElement(checkUploadSection) : hideElement(checkUploadSection);
          manualSelected ? showElement(manualEntrySection) : hideElement(manualEntrySection);
 
-         // Update required attributes based on selection
          if(checkImageInput) checkImageInput.required = checkSelected;
          if(entityNameInput) entityNameInput.required = manualSelected;
          if(routingNumberInput) routingNumberInput.required = manualSelected;
          if(accountNumberInput) accountNumberInput.required = manualSelected;
-         if(accountTypeSelect) accountTypeSelect.required = manualSelected;
      }
 
     // --- Event Handlers ---
@@ -282,14 +277,13 @@ document.addEventListener('DOMContentLoaded', () => {
              isValid = false;
              validationMessage = "Please select a voided check image file to upload.";
         } else if (isManualEntry) {
-            if (!entityNameInput?.value || !routingNumberInput?.value || !accountNumberInput?.value || !accountTypeSelect?.value) {
+            if (!entityNameInput?.value || !routingNumberInput?.value || !accountNumberInput?.value) {
                  isValid = false;
-                 validationMessage = "Please fill in all required banking details for manual entry.";
-            } else if (!/^\d{9}$/.test(routingNumberInput.value)) { // Basic routing number format check (9 digits)
+                 validationMessage = "Please fill in Entity Name, Routing Number, and Account Number.";
+            } else if (!/^\d{9}$/.test(routingNumberInput.value)) {
                  isValid = false;
                  validationMessage = "Routing number must be exactly 9 digits.";
             }
-             // Could add account number format checks too
         }
 
         // Check terms agreement only if other validation passed so far
