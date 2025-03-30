@@ -8,5 +8,6 @@
   package = "@netlify/plugin-functions-install-core"
 
 # Handle form submissions
-[build.processing.html]
-  pretty_urls = true
+# REMOVED pretty_urls setting
+# [build.processing.html]
+#  pretty_urls = true
