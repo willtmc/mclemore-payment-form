@@ -32,3 +32,8 @@ build/
 
 # Local Netlify folder
 .netlify
+
+# Testing
+test-fetch.js
+analyze_page.py
+invoice_scraper.py

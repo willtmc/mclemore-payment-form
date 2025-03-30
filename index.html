@@ -19,30 +19,28 @@
   </script>
 </head>
 <body class="bg-gray-50 min-h-screen">
-  <!-- Include Config First -->
-  <script src="config.js"></script>
-  
   <!-- Immediate script to ensure login form is shown first -->
   <script>
-    // Clear any potentially invalid auth data on page load
-    if (localStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN)) {
+    // Ensure APP_CONFIG exists BEFORE trying to use it here
+    // We might need to define a minimal version or load config differently
+    // For now, let's comment out this immediate script as it depends on CONFIG
+    /* 
+    if (typeof APP_CONFIG !== 'undefined' && localStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN)) {
       try {
         const token = localStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
-        // Simple check without full JWT parsing for this example
-        const tokenData = JSON.parse(atob(token)); // Assuming simple base64 token for example
+        const tokenData = JSON.parse(atob(token)); 
         const currentTime = Date.now();
         
-        // If token is expired or invalid, clear it
         if (!tokenData.exp || tokenData.exp < currentTime) {
           localStorage.removeItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
           localStorage.removeItem(APP_CONFIG.STORAGE_KEYS.CURRENT_USER);
         }
       } catch (e) {
-        // Invalid token format, clear it
         localStorage.removeItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
         localStorage.removeItem(APP_CONFIG.STORAGE_KEYS.CURRENT_USER);
       }
     }
+    */
   </script>
   
   <div class="max-w-4xl mx-auto p-6 md:p-8 lg:p-10">
@@ -71,7 +69,7 @@
         </div>
       </div>
       
-      <div id="login-error" class="hidden bg-red-50 border-l-4 border-red-500 p-4 mb-6">
+      <div id="login-error" class="message-container hidden bg-red-50 border-l-4 border-red-500 p-4 mb-6">
         <div class="flex">
           <div class="flex-shrink-0">
             <svg class="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
@@ -79,53 +77,52 @@
             </svg>
           </div>
           <div class="ml-3">
-            <p class="text-sm text-red-800" id="error-message">
-              Invalid username or password. Please try again.
-            </p>
+            <p class="text-sm text-red-800 error-text" id="error-message"></p>
           </div>
         </div>
       </div>
       
-      <div class="grid grid-cols-1 gap-6 mb-6">
-        <div>
-          <label class="block text-gray-700 font-medium mb-2" for="username">
-            Username <span class="text-red-500">*</span>
-          </label>
-          <input 
-            type="text" 
-            id="username"
-            name="username" 
-            required 
-            class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
-            placeholder="Enter your username"
-          />
+      <form id="staff-login-form">
+        <div class="grid grid-cols-1 gap-6 mb-6">
+          <div>
+            <label class="block text-gray-700 font-medium mb-2" for="username">
+              Username <span class="text-red-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              id="username"
+              name="username" 
+              required 
+              class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
+              placeholder="Enter your username"
+            />
+          </div>
+          
+          <div>
+            <label class="block text-gray-700 font-medium mb-2" for="password">
+              Password <span class="text-red-500">*</span>
+            </label>
+            <input 
+              type="password" 
+              id="password"
+              name="password" 
+              required 
+              class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
+              placeholder="Enter your password"
+            />
+          </div>
         </div>
-        
-        <div>
-          <label class="block text-gray-700 font-medium mb-2" for="password">
-            Password <span class="text-red-500">*</span>
-          </label>
-          <input 
-            type="password" 
-            id="password"
-            name="password" 
-            required 
-            class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
-            placeholder="Enter your password"
-          />
+  
+        <div class="flex justify-end">
+          <button 
+            type="submit"
+            id="login-button" 
+            class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
+          >
+            Log In
+          </button>
         </div>
-      </div>
-
-      <div class="flex justify-end">
-        <button 
-          type="button" 
-          id="login-button" 
-          class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
-          onclick="handleLogin()"
-        >
-          Log In
-        </button>
-      </div>
+      </form>
     </div>
 
     <!-- Step 1: Enter Auction Code and Seller ID (MAC Staff Form) -->
@@ -134,8 +131,8 @@
         <h2 class="text-xl font-semibold text-primary">Generate Seller Payment Form</h2>
         <button 
           id="logout-button" 
+          type="button"
           class="text-sm text-gray-600 hover:text-primary focus:outline-none flex items-center"
-          onclick="handleLogout()"
         >
           <svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -159,74 +156,74 @@
         </div>
       </div>
       
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div>
-          <label class="block text-gray-700 font-medium mb-2" for="auctionCode">
-            Auction Code <span class="text-red-500">*</span>
-          </label>
-          <input 
-            type="text" 
-            id="auctionCode"
-            name="auctionCode" 
-            required 
-            class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
-            placeholder="e.g., 3005"
-          />
-          <p class="text-xs text-gray-500 mt-1">The auction code from the seller statement.</p>
-        </div>
-        
-        <div>
-          <label class="block text-gray-700 font-medium mb-2" for="sellerId">
-            Seller ID <span class="text-red-500">*</span>
-          </label>
-          <input 
-            type="text" 
-            id="sellerId"
-            name="sellerId" 
-            required 
-            class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
-            placeholder="e.g., 273"
-          />
-          <p class="text-xs text-gray-500 mt-1">The seller ID number.</p>
-        </div>
-      </div>
-
-      <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8">
-        <div class="flex">
-          <div class="flex-shrink-0">
-            <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-            </svg>
+      <form id="staff-generate-form">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+          <div>
+            <label class="block text-gray-700 font-medium mb-2" for="auctionCode">
+              Auction Code <span class="text-red-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              id="auctionCode"
+              name="auctionCode" 
+              required 
+              class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
+              placeholder="e.g., 3005"
+            />
+            <p class="text-xs text-gray-500 mt-1">The auction code from the seller statement.</p>
           </div>
-          <div class="ml-3">
-            <p class="text-sm text-yellow-700">
-              This will generate a secure payment form for the seller. You can send them the link or email it directly.
-            </p>
+          
+          <div>
+            <label class="block text-gray-700 font-medium mb-2" for="sellerId">
+              Seller ID <span class="text-red-500">*</span>
+            </label>
+            <input 
+              type="text" 
+              id="sellerId"
+              name="sellerId" 
+              required 
+              class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
+              placeholder="e.g., 273"
+            />
+            <p class="text-xs text-gray-500 mt-1">The seller ID number.</p>
           </div>
         </div>
-      </div>
+  
+        <div class="my-4">
+          <p id="generate-link-message" class="text-sm"></p>
+        </div>
 
-      <div class="flex justify-end">
-        <button 
-          type="button" 
-          id="retrieveStatement" 
-          class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
-        >
-          Generate Payment Form
-        </button>
-      </div>
+        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="ml-3">
+              <p class="text-sm text-yellow-700">
+                This will generate a secure payment form for the seller and email the link using the email address found on their statement.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex justify-end">
+          <button 
+            type="submit"
+            id="retrieveStatement" 
+            class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
+          >
+            Generate Payment Form
+          </button>
+        </div>
+      </form>
     </div>
 
     <!-- Step 2: Statement Summary and Payment Information (Seller Form) -->
     <div id="step-2" class="bg-white shadow-md rounded-lg p-6 md:p-8 mt-6 hidden">
-      <!-- 
-        Netlify form attributes:
-        - name="paymentForm" (identifies the form to Netlify)
-        - data-netlify="true" (activates Netlify form functionality)
-        - netlify-honeypot="bot-field" (helps prevent spam)
-        - action="/success.html" (redirects to a custom success page)
-      -->
       <form 
+        id="paymentForm"
         name="paymentForm" 
         method="POST" 
         data-netlify="true" 
@@ -235,19 +232,15 @@
         class="space-y-8"
         enctype="multipart/form-data"
       >
-        <!-- This hidden input is required for Netlify Forms to work properly -->
         <input type="hidden" name="form-name" value="paymentForm" />
+        <input type="hidden" name="sellerName" value="">
+        <input type="hidden" name="auctionDetails" value="">
+        <input type="hidden" name="amountDue" value="">
         
-        <!-- Honeypot field to catch spam bots (will be hidden from humans) -->
         <p class="hidden">
           <label>Don't fill this out if you're human: <input name="bot-field" /></label>
         </p>
 
-        <!-- Hidden fields to store auction and seller information -->
-        <input type="hidden" id="form-auctionCode" name="auctionCode" />
-        <input type="hidden" id="form-sellerId" name="sellerId" />
-
-        <!-- Seller Welcome Message -->
         <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
           <div class="flex">
             <div class="flex-shrink-0">
@@ -263,7 +256,10 @@
           </div>
         </div>
 
-        <!-- Statement Summary Section -->
+        <div class="my-4">
+          <p id="payment-form-message" class="text-sm"></p>
+        </div>
+
         <div class="border border-gray-200 rounded-md p-5">
           <h2 class="text-lg font-semibold text-primary mb-4 flex items-center">
             <span class="bg-primary text-white rounded-full w-6 h-6 inline-flex items-center justify-center mr-2 text-sm">1</span>
@@ -271,7 +267,6 @@
           </h2>
           
           <div id="statement-details" class="space-y-4">
-            <!-- This will be populated with statement data -->
             <div class="bg-gray-50 p-4 rounded-md">
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -295,15 +290,13 @@
           </div>
         </div>
 
-        <!-- Payment Method Section -->
-        <div class="border border-gray-200 rounded-md p-5">
+        <div class="payment-options-container border border-gray-200 rounded-md p-5">
           <h2 class="text-lg font-semibold text-primary mb-4 flex items-center">
             <span class="bg-primary text-white rounded-full w-6 h-6 inline-flex items-center justify-center mr-2 text-sm">2</span>
             Payment Method
           </h2>
           <p class="text-gray-700 mb-4">Please provide your bank account information for ACH direct deposit:</p>
           
-          <!-- Option 1: Upload Check -->
           <div class="bg-blue-50 border border-blue-200 rounded-md p-4 mb-6">
             <div class="flex items-start mb-4">
               <input 
@@ -312,7 +305,6 @@
                 name="paymentOption" 
                 value="check" 
                 class="mt-1 mr-2"
-                onclick="togglePaymentOptions('check')"
               />
               <div>
                 <label for="option-check" class="font-semibold text-primary cursor-pointer">Option 1: Upload a Voided Check</label>
@@ -352,7 +344,6 @@
             </div>
           </div>
 
-          <!-- Option 2: Enter Account Details Manually -->
           <div class="bg-gray-50 border border-gray-200 rounded-md p-4 mb-6">
             <div class="flex items-start mb-4">
               <input 
@@ -361,7 +352,6 @@
                 name="paymentOption" 
                 value="manual" 
                 class="mt-1 mr-2"
-                onclick="togglePaymentOptions('manual')"
               />
               <div>
                 <label for="option-manual" class="font-semibold text-primary cursor-pointer">Option 2: Enter Account Details Manually</label>
@@ -444,7 +434,6 @@
           </div>
         </div>
 
-        <!-- Authorization Section -->
         <div class="border border-gray-200 rounded-md p-5">
           <h2 class="text-lg font-semibold text-primary mb-4 flex items-center">
             <span class="bg-primary text-white rounded-full w-6 h-6 inline-flex items-center justify-center mr-2 text-sm">3</span>
@@ -468,7 +457,7 @@
           
           <div class="flex justify-end">
             <button 
-              type="submit" 
+              type="submit"
               class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
             >
               Submit Payment Information
@@ -484,612 +473,8 @@
     </footer>
   </div>
 
-  <script>
-    // Ensure config is loaded
-    if (typeof APP_CONFIG === 'undefined') {
-      console.error('APP_CONFIG is not loaded. Make sure config.js is included before this script.');
-      // Optionally, show an error message to the user or halt execution
-    }
-
-    // Global variables for authentication
-    let authToken = localStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
-    let currentUser = JSON.parse(localStorage.getItem(APP_CONFIG.STORAGE_KEYS.CURRENT_USER) || 'null');
-    
-    // Helper to get element by configured ID
-    function getConfigElement(idKey) {
-      return document.getElementById(APP_CONFIG.ELEMENT_IDS[idKey]);
-    }
-
-    // Toggle between payment options
-    function togglePaymentOptions(option) {
-      const checkUploadSection = getConfigElement('CHECK_UPLOAD_SECTION');
-      const manualEntrySection = getConfigElement('MANUAL_ENTRY_SECTION');
-      
-      const checkImageInput = getConfigElement('CHECK_IMAGE_INPUT');
-      const entityNameInput = getConfigElement('ENTITY_NAME_INPUT');
-      const routingNumberInput = getConfigElement('ROUTING_NUMBER_INPUT');
-      const accountNumberInput = getConfigElement('ACCOUNT_NUMBER_INPUT');
-      const accountTypeSelect = getConfigElement('ACCOUNT_TYPE_SELECT');
-
-      if (option === 'check') {
-        checkUploadSection.classList.remove('hidden');
-        manualEntrySection.classList.add('hidden');
-        
-        // Reset manual entry fields
-        entityNameInput.required = false;
-        routingNumberInput.required = false;
-        accountNumberInput.required = false;
-        accountTypeSelect.required = false;
-        
-        // Make check upload required
-        checkImageInput.required = true;
-      } else if (option === 'manual') {
-        checkUploadSection.classList.add('hidden');
-        manualEntrySection.classList.remove('hidden');
-        
-        // Reset check upload field
-        checkImageInput.required = false;
-        
-        // Make manual entry fields required
-        entityNameInput.required = true;
-        routingNumberInput.required = true;
-        accountNumberInput.required = true;
-        accountTypeSelect.required = true;
-      }
-      
-      // Update progress bar after toggling options (If progress bar exists)
-      // updateProgressBar(); 
-    }
-    
-    // Progress bar functionality (If implemented)
-    // function updateProgressBar() { ... }
-    
-    // Function to generate a unique payment form URL
-    function generatePaymentFormUrl(auctionCode, sellerId) {
-      const baseUrl = window.location.origin + window.location.pathname;
-      const timestamp = Date.now();
-      const randomString = Math.random().toString(36).substring(2, 15);
-      const token = btoa(`${auctionCode}:${sellerId}:${timestamp}:${randomString}`);
-      console.log('Generated Token:', token);
-      // Use configured query param names
-      return `${baseUrl}?${APP_CONFIG.URL_PARAMS.AUCTION}=${encodeURIComponent(auctionCode)}&${APP_CONFIG.URL_PARAMS.SELLER}=${encodeURIComponent(sellerId)}&${APP_CONFIG.URL_PARAMS.TOKEN}=${encodeURIComponent(token)}`;
-    }
-    
-    // Function to copy payment URL to clipboard
-    function copyPaymentUrl(url) {
-      navigator.clipboard.writeText(url).then(() => {
-        alert('Payment URL copied to clipboard!');
-      });
-    }
-    
-    // Function to handle login
-    function handleLogin() {
-      const usernameInput = getConfigElement('USERNAME_INPUT');
-      const passwordInput = getConfigElement('PASSWORD_INPUT');
-      const loginErrorDiv = getConfigElement('LOGIN_ERROR');
-      const errorMessageP = getConfigElement('ERROR_MESSAGE');
-      const loginButton = getConfigElement('LOGIN_BUTTON');
-
-      const username = usernameInput.value.trim();
-      const password = passwordInput.value.trim();
-      
-      if (!username || !password) {
-        loginErrorDiv.classList.remove('hidden');
-        errorMessageP.textContent = 'Please enter both username and password.';
-        return;
-      }
-      
-      loginButton.disabled = true;
-      loginButton.textContent = 'Logging in...';
-      loginErrorDiv.classList.add('hidden'); // Hide previous errors
-      
-      fetch(APP_CONFIG.API_PATHS.AUTHENTICATE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      })
-      .then(response => {
-        if (!response.ok) {
-          return response.json().then(err => { throw new Error(err.message || 'Authentication failed'); });
-        }
-        return response.json();
-      })
-      .then(data => {
-        authToken = data.token;
-        // Storing plain password temporarily - review security implications
-        currentUser = { username: data.username, password: password }; 
-        
-        localStorage.setItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN, authToken);
-        localStorage.setItem(APP_CONFIG.STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser));
-        
-        getConfigElement('LOGIN_FORM').classList.add('hidden');
-        getConfigElement('STAFF_FORM_STEP').classList.remove('hidden');
-        
-        // Update welcome message (assuming structure remains similar)
-        const welcomeMessage = document.querySelector(`#${APP_CONFIG.ELEMENT_IDS.STAFF_FORM_STEP} .text-blue-800`);
-        if (welcomeMessage) {
-          welcomeMessage.textContent = `Welcome, ${data.username}. Enter the auction code and seller ID to generate a payment form link.`;
-        }
-      })
-      .catch(error => {
-        console.error('Login error:', error);
-        loginErrorDiv.classList.remove('hidden');
-        errorMessageP.textContent = error.message || 'Invalid username or password. Please try again.';
-      })
-      .finally(() => {
-         // Reset button state only if login failed
-         if (!authToken) {
-             loginButton.disabled = false;
-             loginButton.textContent = 'Log In';
-         }
-      });
-    }
-    
-    // Function to handle logout
-    function handleLogout() {
-      localStorage.removeItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
-      localStorage.removeItem(APP_CONFIG.STORAGE_KEYS.CURRENT_USER);
-      authToken = null;
-      currentUser = null;
-      
-      getConfigElement('LOGIN_FORM').classList.remove('hidden');
-      getConfigElement('STAFF_FORM_STEP').classList.add('hidden');
-      getConfigElement('PAYMENT_FORM_STEP').classList.add('hidden');
-      
-      // Reset login form fields
-      getConfigElement('USERNAME_INPUT').value = '';
-      getConfigElement('PASSWORD_INPUT').value = '';
-      getConfigElement('LOGIN_ERROR').classList.add('hidden');
-    }
-    
-    // Function to reset the form
-    function resetForm() {
-      const staffFormStepDiv = getConfigElement('STAFF_FORM_STEP');
-      staffFormStepDiv.innerHTML = `
-        <div class="flex justify-between items-center mb-6">
-          <h2 class="text-xl font-semibold text-primary">Generate Seller Payment Form</h2>
-          <button 
-            id="${APP_CONFIG.ELEMENT_IDS.LOGOUT_BUTTON}" 
-            class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 focus:outline-none"
-            onclick="handleLogout()"
-          >
-            Logout
-          </button>
-        </div>
-        
-        <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
-          <div class="flex">
-            <div class="flex-shrink-0">
-              <svg class="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-              </svg>
-            </div>
-            <div class="ml-3">
-              <p class="text-sm text-blue-800">
-                Welcome, ${currentUser ? currentUser.username : ''}. Enter the auction code and seller ID to generate a payment form link.
-              </p>
-            </div>
-          </div>
-        </div>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <label class="block text-gray-700 font-medium mb-2" for="${APP_CONFIG.ELEMENT_IDS.AUCTION_CODE_INPUT}">
-              Auction Code <span class="text-red-500">*</span>
-            </label>
-            <input 
-              type="text" 
-              id="${APP_CONFIG.ELEMENT_IDS.AUCTION_CODE_INPUT}" 
-              required 
-              class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
-              placeholder="Enter auction code"
-            />
-          </div>
-          
-          <div>
-            <label class="block text-gray-700 font-medium mb-2" for="${APP_CONFIG.ELEMENT_IDS.SELLER_ID_INPUT}">
-              Seller ID <span class="text-red-500">*</span>
-            </label>
-            <input 
-              type="text" 
-              id="${APP_CONFIG.ELEMENT_IDS.SELLER_ID_INPUT}" 
-              required 
-              class="w-full px-4 py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
-              placeholder="Enter seller ID"
-            />
-          </div>
-        </div>
-        
-        <div class="flex justify-end">
-          <button 
-            type="button" 
-            id="${APP_CONFIG.ELEMENT_IDS.RETRIEVE_STATEMENT_BUTTON}" 
-            class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
-          >
-            Generate Payment Form
-          </button>
-        </div>
-      `;
-      
-      // Re-add event listener to the new button
-      getConfigElement('RETRIEVE_STATEMENT_BUTTON').addEventListener('click', handleGenerateClick);
-    }
-    
-    // Function to send payment link via email
-    function sendPaymentLink(paymentFormUrl, email, name, auctionTitle) {
-      // ... (Get button element)
-      const sendButton = event.target; // Assumes called from button click
-      sendButton.disabled = true;
-      sendButton.textContent = 'Sending...';
-      
-      const username = currentUser ? currentUser.username : 'Unknown';
-      
-      fetch(APP_CONFIG.API_PATHS.SEND_PAYMENT_LINK, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
-        },
-        body: JSON.stringify({
-          paymentFormUrl: paymentFormUrl,
-          sellerEmail: email,
-          sellerName: name,
-          auctionTitle: auctionTitle,
-          sentBy: username
-        })
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Failed to send payment link');
-        }
-        return response.json();
-      })
-      .then(data => {
-        // Show success message
-        getConfigElement('STAFF_FORM_STEP').innerHTML = `
-          <div class="bg-white p-6 rounded-lg">
-            <div class="text-center mb-6">
-              <div class="inline-flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-                <svg class="h-10 w-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-              </div>
-              <h2 class="text-2xl font-semibold text-primary mb-2">Payment Link Sent!</h2>
-              <p class="text-gray-600 mb-6">The payment form link has been sent to ${email}.</p>
-            </div>
-            
-            <div class="bg-gray-50 p-4 rounded-md mb-6">
-              <p class="text-sm text-gray-700 mb-2">You can also copy the payment link directly:</p>
-              <div class="flex">
-                <input 
-                  type="text" 
-                  value="${paymentFormUrl}" 
-                  readonly 
-                  class="flex-grow px-4 py-2 border border-gray-300 rounded-l-md focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition"
-                />
-                <button 
-                  onclick="copyPaymentUrl('${paymentFormUrl}')" 
-                  class="px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-r-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
-                >
-                  Copy
-                </button>
-              </div>
-            </div>
-            
-            <div class="flex justify-center">
-              <button 
-                onclick="resetForm()" 
-                class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors"
-              >
-                Generate Another Link
-              </button>
-            </div>
-          </div>
-        `;
-      })
-      .catch(error => {
-        console.error('Error sending payment link:', error);
-        alert('Failed to send payment link. Please try again.');
-        sendButton.disabled = false;
-        sendButton.textContent = 'Send Payment Link';
-      });
-    }
-    
-    // Shared logic for generate/retrieve button click
-    function handleGenerateClick() {
-      const auctionCodeInput = getConfigElement('AUCTION_CODE_INPUT');
-      const sellerIdInput = getConfigElement('SELLER_ID_INPUT');
-      const auctionCode = auctionCodeInput.value.trim();
-      const sellerId = sellerIdInput.value.trim();
-      
-      if (!auctionCode || !sellerId) {
-        alert('Please enter both Auction Code and Seller ID.');
-        return;
-      }
-      if (!/^\d+$/.test(auctionCode)) {
-        alert('Auction Code should contain only numbers.');
-        return;
-      }
-      if (!/^\d+$/.test(sellerId)) {
-        alert('Seller ID should contain only numbers.');
-        return;
-      }
-      
-      // Fetch seller data from API
-      fetchSellerData(auctionCode, sellerId);
-    }
-    
-    // Function to fetch seller data
-    function fetchSellerData(auctionCode, sellerId) {
-      if (!authToken || !currentUser) {
-        alert('Your session has expired. Please log in again.');
-        handleLogout();
-        return Promise.reject(new Error('Authentication required'));
-      }
-      
-      const username = currentUser.username;
-      // Ensure password is included if needed by your API logic
-      const password = currentUser.password || ''; 
-      
-      const retrieveButton = getConfigElement('RETRIEVE_STATEMENT_BUTTON'); // Button ID might change after resetForm
-      if (retrieveButton) {
-        retrieveButton.disabled = true;
-        retrieveButton.innerHTML = '<svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Retrieving Data...';
-      }
-      
-      fetch(APP_CONFIG.API_PATHS.GET_SELLER_DATA, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
-        },
-        body: JSON.stringify({
-          auctionCode,
-          sellerId,
-          username,
-          password // Include password if your Netlify function requires it for scraping
-        })
-      })
-      .then(response => {
-        if (!response.ok) {
-          return response.json().then(errorData => {
-            throw new Error(errorData.message || 'Failed to retrieve seller data');
-          });
-        }
-        return response.json();
-      })
-      .then(data => {
-        const paymentFormUrl = generatePaymentFormUrl(auctionCode, sellerId);
-        
-        // Show confirmation dialog
-        getConfigElement('STAFF_FORM_STEP').innerHTML = `
-          <div class="bg-white p-6 rounded-lg">
-            <h2 class="text-xl font-semibold text-primary mb-6">Confirm Seller Details</h2>
-            
-            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6">
-              <div class="flex">
-                <div class="flex-shrink-0">
-                  <svg class="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                  </svg>
-                </div>
-                <div class="ml-3">
-                  <p class="text-sm text-blue-800">
-                    <span class="font-medium">Please verify:</span> The following information will be used to generate a payment form link for the seller. The link will be sent directly to the seller's email address.
-                  </p>
-                </div>
-              </div>
-            </div>
-            
-            <div class="bg-gray-50 p-4 rounded-md mb-6">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p class="text-sm text-gray-500">Seller Name:</p>
-                  <p class="font-medium text-gray-800">${data.name}</p>
-                </div>
-                <div>
-                  <p class="text-sm text-gray-500">Seller Email:</p>
-                  <p class="font-medium text-gray-800">${data.email || 'Not available'}</p>
-                </div>
-                <div>
-                  <p class="text-sm text-gray-500">Auction:</p>
-                  <p class="font-medium text-gray-800">${data.auctionTitle}</p>
-                </div>
-                <div>
-                  <p class="text-sm text-gray-500">Statement Date:</p>
-                  <p class="font-medium text-gray-800">${data.statementDate}</p>
-                </div>
-                <div>
-                  <p class="text-sm text-gray-500">Total Amount Due:</p>
-                  <p class="font-medium text-primary text-lg">$${data.totalDue}</p>
-                </div>
-                <div>
-                  <p class="text-sm text-gray-500">Auction Code:</p>
-                  <p class="font-medium text-gray-800">${auctionCode}</p>
-                </div>
-                <div>
-                  <p class="text-sm text-gray-500">Seller ID:</p>
-                  <p class="font-medium text-gray-800">${sellerId}</p>
-                </div>
-                <div>
-                  <p class="text-sm text-gray-500">Retrieved By:</p>
-                  <p class="font-medium text-gray-800">${username}</p>
-                </div>
-              </div>
-            </div>
-            
-            <div class="flex flex-col sm:flex-row justify-end gap-4">
-              <button onclick="resetForm()" class="px-6 py-3 bg-white border border-gray-300 text-gray-700 font-medium rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
-                Cancel
-              </button>
-              ${data.email ? `
-              <button onclick="sendPaymentLink('${paymentFormUrl}', '${data.email}', '${data.name}', '${data.auctionTitle}')" class="px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 transition-colors">
-                Send Payment Link
-              </button>
-              ` : ''}
-              <button onclick="copyPaymentUrl('${paymentFormUrl}')" class="px-6 py-3 ${!data.email ? 'bg-primary text-white' : 'bg-white border border-gray-300 text-gray-700'} font-medium rounded-md hover:${!data.email ? 'bg-primary/90' : 'bg-gray-50'} focus:outline-none focus:ring-2 focus:ring-${!data.email ? 'primary' : 'gray-500'} focus:ring-offset-2 transition-colors">
-                Copy Payment URL
-              </button>
-            </div>
-          </div>
-        `;
-      })
-      .catch(error => {
-        console.error('Error fetching seller data:', error);
-        const errorMessage = error.message || 'Failed to retrieve seller data. Please try again.';
-        alert(errorMessage);
-        // Reset button state only if it exists (might have been replaced by confirmation screen)
-        if (retrieveButton) { 
-            retrieveButton.disabled = false;
-            retrieveButton.textContent = 'Generate Payment Form';
-        } else {
-            // If confirmation screen was shown then failed, offer to go back?
-            // Or maybe just reset the whole form.
-            resetForm(); 
-        }
-      });
-    }
-    
-    // Function to fetch statement data for seller form
-    function fetchStatementData(auctionCode, sellerId) {
-      console.log('Fetching statement data for seller form:', auctionCode, sellerId);
-      getConfigElement('SELLER_NAME_DISPLAY').textContent = 'Loading...';
-      getConfigElement('AUCTION_TITLE_DISPLAY').textContent = 'Loading...';
-      getConfigElement('STATEMENT_DATE_DISPLAY').textContent = 'Loading...';
-      getConfigElement('TOTAL_DUE_DISPLAY').textContent = 'Loading...';
-      
-      // Construct URL using config path and query parameters
-      const url = `${APP_CONFIG.API_PATHS.GET_SELLER_DATA}?auctionCode=${encodeURIComponent(auctionCode)}&sellerId=${encodeURIComponent(sellerId)}`;
-      
-      fetch(url, { method: 'GET' }) // Should this be POST matching the function? Check get-seller-data.js handler
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Failed to retrieve statement data');
-        }
-        return response.json();
-      })
-      .then(data => {
-        console.log('Statement data received:', data);
-        getConfigElement('SELLER_NAME_DISPLAY').textContent = data.name;
-        getConfigElement('AUCTION_TITLE_DISPLAY').textContent = data.auctionTitle;
-        getConfigElement('STATEMENT_DATE_DISPLAY').textContent = data.statementDate;
-        getConfigElement('TOTAL_DUE_DISPLAY').textContent = `$${data.totalDue}`; // Added $ sign
-      })
-      .catch(error => {
-        console.error('Error fetching statement data:', error);
-        getConfigElement('SELLER_NAME_DISPLAY').textContent = 'Error loading data';
-        getConfigElement('AUCTION_TITLE_DISPLAY').textContent = 'Error loading data';
-        getConfigElement('STATEMENT_DATE_DISPLAY').textContent = 'Error loading data';
-        getConfigElement('TOTAL_DUE_DISPLAY').textContent = 'Error loading data';
-        alert('Failed to load statement data. Please contact McLemore Auction Company for assistance.');
-      });
-    }
-    
-    // Add event listeners to all relevant form fields (using config IDs)
-    document.addEventListener('DOMContentLoaded', function() {
-      // ... (Initial show/hide logic based on auth/URL params) ...
-      const loginForm = getConfigElement('LOGIN_FORM');
-      const staffForm = getConfigElement('STAFF_FORM_STEP');
-      const paymentForm = getConfigElement('PAYMENT_FORM_STEP');
-
-      loginForm.classList.remove('hidden');
-      staffForm.classList.add('hidden');
-      paymentForm.classList.add('hidden');
-      
-      // Check auth
-      if (authToken && currentUser) {
-        try {
-            // Basic token expiry check (as in header script)
-            const token = localStorage.getItem(APP_CONFIG.STORAGE_KEYS.AUTH_TOKEN);
-            const tokenData = JSON.parse(atob(token));
-            if (!tokenData.exp || tokenData.exp < Date.now()) {
-                handleLogout(); // Force logout if expired
-            } else {
-                loginForm.classList.add('hidden');
-                staffForm.classList.remove('hidden');
-            }
-        } catch (e) {
-            handleLogout(); // Force logout if invalid token
-        }
-      }
-      
-      // Check URL params
-      const urlParams = new URLSearchParams(window.location.search);
-      const auctionCodeParam = urlParams.get(APP_CONFIG.URL_PARAMS.AUCTION);
-      const sellerIdParam = urlParams.get(APP_CONFIG.URL_PARAMS.SELLER);
-      const tokenParam = urlParams.get(APP_CONFIG.URL_PARAMS.TOKEN);
-      
-      if (auctionCodeParam && sellerIdParam && tokenParam) {
-        // Validate tokenParam server-side first (TODO)
-        console.log('Detected seller form URL parameters');
-        loginForm.classList.add('hidden');
-        staffForm.classList.add('hidden');
-        paymentForm.classList.remove('hidden');
-        
-        getConfigElement('FORM_AUCTION_CODE_HIDDEN').value = auctionCodeParam;
-        getConfigElement('FORM_SELLER_ID_HIDDEN').value = sellerIdParam;
-        
-        fetchStatementData(auctionCodeParam, sellerIdParam);
-      } 
-      
-      // Add event listeners using config IDs
-      const passwordInput = getConfigElement('PASSWORD_INPUT');
-      if (passwordInput) {
-        passwordInput.addEventListener('keypress', function(event) {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            handleLogin();
-          }
-        });
-      }
-      
-      const loginButton = getConfigElement('LOGIN_BUTTON');
-      if (loginButton) {
-          loginButton.addEventListener('click', handleLogin); // Ensure this wasn't missed
-      }
-
-      const logoutButton = getConfigElement('LOGOUT_BUTTON');
-      if (logoutButton) {
-        logoutButton.addEventListener('click', handleLogout);
-      }
-      
-      const retrieveButton = getConfigElement('RETRIEVE_STATEMENT_BUTTON');
-      if (retrieveButton) {
-        retrieveButton.addEventListener('click', handleGenerateClick);
-      }
-      
-      // Payment option radio buttons
-      const optionCheckRadio = getConfigElement('OPTION_CHECK_RADIO');
-      const optionManualRadio = getConfigElement('OPTION_MANUAL_RADIO');
-      if (optionCheckRadio) {
-          optionCheckRadio.addEventListener('click', () => togglePaymentOptions('check'));
-      }
-      if (optionManualRadio) {
-          optionManualRadio.addEventListener('click', () => togglePaymentOptions('manual'));
-      }
-
-      // Form submission logic (for Netlify)
-      const paymentFormElement = getConfigElement('PAYMENT_FORM');
-      if (paymentFormElement) {
-          paymentFormElement.setAttribute('name', APP_CONFIG.FORM_ATTRS.PAYMENT_FORM_NAME);
-          paymentFormElement.setAttribute('action', APP_CONFIG.FORM_ATTRS.SUCCESS_PAGE_PATH);
-          // Update hidden form-name input as well
-          const hiddenFormName = paymentFormElement.querySelector('input[name="form-name"]');
-          if (hiddenFormName) {
-              hiddenFormName.value = APP_CONFIG.FORM_ATTRS.PAYMENT_FORM_NAME;
-          }
-      }
-
-      // Add listeners for progress bar if implemented
-      // const formFields = paymentFormElement?.querySelectorAll('input, select, textarea');
-      // if (formFields) {
-      //     formFields.forEach(field => {
-      //         field.addEventListener('input', updateProgressBar);
-      //         field.addEventListener('change', updateProgressBar);
-      //     });
-      //     updateProgressBar(); // Initial calculation
-      // }
-    });
-  </script>
+  <!-- Scripts loaded at the end -->
+  <script src="config.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

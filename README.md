@@ -44,15 +44,40 @@ This application implements a secure two-user workflow for collecting payment in
   - Form validation to ensure required information is provided
   - Success page with confirmation message and next steps
 
+## Current Status (As of [Date - e.g., Mar 30, 2025])
+
+Development is currently paused after successfully implementing and testing the core staff workflow:
+
+*   **Dependency Consolidation:** Completed (Phase 1).
+*   **Staff Authentication:** Implemented function to log staff in via `mclemoreauction.com` credentials (simulating browser flow) and obtain session cookies (Phase 2).
+*   **Data Scraping:** Implemented logic within the link generation function to scrape Seller Name, Auction Title, Amount Due, and **Seller Email** from the `/admin/statements/printreport/...` page using the staff session (Phase 2/3).
+*   **Secure Link Generation & Sending:** Implemented function to generate a unique, single-use token, store scraped data associated with it (using temporary in-memory cache), and email the link (`/index.html?token=...`) to the scraped seller email address (Phase 3).
+*   **Seller Data Retrieval:** Implemented function (`get-payment-details`) to retrieve cached seller data using the token from the URL and invalidate the token (Phase 4).
+*   **Frontend Logic:** Implemented basic frontend structure (`index.html`, `config.js`, `app.js`) to handle view switching (Login vs. Staff Generate vs. Seller Form), staff login API calls, generate link API calls, and initial seller data fetching via token (Phase 5).
+
+**Successfully Tested Locally (`netlify dev`):**
+
+*   Staff login using valid `mclemoreauction.com` credentials.
+*   Generation of payment links (correctly scraping required data, including email).
+*   Email delivery of the secure link.
+
+## Next Steps / Outstanding Items
+
+1.  **Seller Form Testing (Resume Here):**
+    *   Click the link sent to the seller's email.
+    *   Verify seller data populates the form correctly.
+    *   Test submitting the form via both "Upload Check" and "Manual Entry".
+    *   Check Netlify Forms dashboard/logs for successful submission capture (including hidden data).
+    *   Verify redirection to `/success.html` (ensure page exists).
+2.  **Caching Implementation (CRITICAL):** Replace the current **in-memory** `staffSessionCache` and `sellerDataCache` in the Netlify functions with a production-ready, persistent solution (e.g., signed JWTs, FaunaDB, Upstash Redis).
+3.  **Error Handling/Robustness:** Enhance error handling, particularly around the scraping logic, to gracefully handle potential changes in the target site's HTML structure.
+4.  **Security Review:** Harden token generation/validation (e.g., implement expiry for `sellerAccessToken`, consider signed JWTs).
+5.  **Tailwind CSS:** Address the CDN warning by setting up Tailwind CLI or PostCSS for production builds.
+6.  **Production Deployment:** Configure Netlify environment variables and deploy.
+
 ## Testing Locally
 
-Run the following command in the project directory:
-
-```
-python -m http.server 8000
-```
-
-Then visit http://localhost:8000 in your browser.
+Run `netlify dev` in the project directory.
 
 ## Deployment to Netlify
 

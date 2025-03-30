@@ -47,7 +47,8 @@ const CONFIG = {
   API_PATHS: {
     AUTHENTICATE: '/.netlify/functions/authenticate',
     GET_SELLER_DATA: '/.netlify/functions/get-seller-data',
-    SEND_PAYMENT_LINK: '/.netlify/functions/send-payment-link'
+    SEND_PAYMENT_LINK: '/.netlify/functions/send-payment-link',
+    GET_PAYMENT_DETAILS: '/.netlify/functions/get-payment-details'
   },
 
   // Local Storage Keys
