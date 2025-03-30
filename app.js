@@ -298,12 +298,13 @@ document.addEventListener('DOMContentLoaded', () => {
             displayMessage(null, paymentFormMessage, validationMessage, true);
             return;
         }
-
-        // If validation passed, disable button and allow Netlify to handle submission
+        // If validation passed, allow Netlify to handle submission
         console.log("Client-side validation passed. Allowing Netlify form submission.");
-        paymentSubmitButton.disabled = true;
-        paymentSubmitButton.textContent = 'Submitting...';
-        // Netlify will take over now
+        if(paymentSubmitButton) {
+             paymentSubmitButton.disabled = true;
+             paymentSubmitButton.textContent = 'Submitting...';
+        }
+        console.log("Default form submission to Netlify should proceed now.");
     }
 
 
