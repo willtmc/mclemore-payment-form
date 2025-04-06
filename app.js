@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const paymentForm = document.getElementById(C.ELEMENT_IDS.PAYMENT_FORM);
     const sellerNameDisplay = document.getElementById(C.ELEMENT_IDS.SELLER_NAME_DISPLAY);
     const auctionTitleDisplay = document.getElementById(C.ELEMENT_IDS.AUCTION_TITLE_DISPLAY);
-    const statementDateDisplay = document.getElementById(C.ELEMENT_IDS.STATEMENT_DATE_DISPLAY); // Get statement date element
+    const statementDateDisplay = document.getElementById(C.ELEMENT_IDS.STATEMENT_DATE_DISPLAY);
     const totalDueDisplay = document.getElementById(C.ELEMENT_IDS.TOTAL_DUE_DISPLAY);
     // Added message element ID, ensure it exists in HTML for step-2
     const paymentFormMessage = document.getElementById('payment-form-message');
@@ -354,19 +354,15 @@ document.addEventListener('DOMContentLoaded', () => {
                      return response.json(); // Parse JSON body if response is ok
                  })
                 .then(data => {
-                    hideMessage(null, paymentFormMessage); // Hide loading message
+                    hideMessage(null, paymentFormMessage); 
                     console.log("Seller data received:", data);
-
-                    // Format the amount due
-                    const formattedAmount = data.amountDue ? 
-                        `$${data.amountDue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 
-                        'N/A';
 
                     // Populate display fields
                     if(sellerNameDisplay) sellerNameDisplay.textContent = data.sellerName || 'N/A';
                     if(auctionTitleDisplay) auctionTitleDisplay.textContent = data.auctionDetails || 'N/A';
                     if(statementDateDisplay) statementDateDisplay.textContent = data.statementDate || 'N/A';
-                    if(totalDueDisplay) totalDueDisplay.textContent = formattedAmount; // Use formatted amount
+                    // Hide the amount display element if it exists
+                    if(totalDueDisplay) hideElement(totalDueDisplay.closest('.amount-container')); // Assuming amount is in a container
 
                     // Populate hidden fields required for Netlify form submission
                     function setHiddenValue(name, value) {
@@ -376,7 +372,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     setHiddenValue('sellerName', data.sellerName);
                     setHiddenValue('auctionDetails', data.auctionDetails);
-                    setHiddenValue('amountDue', data.amountDue?.toFixed(2));
                     // Add any other hidden fields as needed
 
                     // Set up the payment option radio buttons and sections

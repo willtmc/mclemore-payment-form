@@ -56,8 +56,6 @@ async function fetchAndParseSellerData(jar, auctionCode, sellerId) {
     
     const auctionTitle = $('td#report-title').text().trim();
     
-    const amountDueText = $('table.report-content:last-of-type td[style*="border-bottom: 1px solid #000"][style*="border-top: 1px solid #000"]').text().trim();
-    
     const sellerEmail = $('table#report-heading tr:nth-child(3) td:last-child a[href^="mailto:"]').text().trim();
 
     // --- ADDED: Extract Statement Date ---
@@ -74,21 +72,18 @@ async function fetchAndParseSellerData(jar, auctionCode, sellerId) {
          }
     }
 
-    const amountDue = parseFloat(amountDueText.replace(/[^\d.-]/g, ''));
-
-    // Final validation check (include statementDate)
-    if (!sellerName || !auctionTitle || isNaN(amountDue) || !sellerEmail || !statementDate) {
+    // Final validation check (remove amountDue)
+    if (!sellerName || !auctionTitle || !sellerEmail || !statementDate) {
       console.warn("Validation Failed: Could not extract all required data points.");
-      console.warn(`Values - Name: '${sellerName}', Title: '${auctionTitle}', Amount Text: '${amountDueText}', Parsed Amount: ${amountDue}, Email: '${sellerEmail}', Date: '${statementDate}'`);
+      console.warn(`Values - Name: '${sellerName}', Title: '${auctionTitle}', Email: '${sellerEmail}', Date: '${statementDate}'`); // Removed Amount logging
       throw new Error("Failed to parse required data from the seller report page.");
     }
 
     const extractedData = {
       sellerName: sellerName,
       auctionDetails: auctionTitle,
-      amountDue: amountDue,
       sellerEmail: sellerEmail,
-      statementDate: statementDate // Include date
+      statementDate: statementDate 
     };
 
     return extractedData;
@@ -201,18 +196,18 @@ exports.handler = async (event) => {
         }
         // --- END Post-Login Initialization Steps ---
 
-        // Step 3: Fetch and parse the seller data (now includes date)
+        // Step 3: Fetch and parse the seller data (now excludes amount)
         const sellerData = await fetchAndParseSellerData(jar, auctionCode, sellerId);
 
         // Step 4: Create a *new* JWT containing the seller data
         console.log("Creating seller data token...");
-        const sellerPayload = { ...sellerData }; // Payload now includes statementDate
+        const sellerPayload = { ...sellerData }; // Payload no longer includes amountDue
         const sellerDataToken = jwt.sign(sellerPayload, JWT_SECRET, { expiresIn: '24h' }); 
         
-        // Step 5: Construct the seller payment form URL with the JWT
-        const paymentFormUrl = `/index.html?token=${sellerDataToken}`; // Use JWT as token
+        // Step 5: Construct the seller payment form URL
+        const paymentFormUrl = `/index.html?token=${sellerDataToken}`;
 
-        // Step 6: Send the email using the SCRAPED email address
+        // Step 6: Send the email
         if (!sellerData.sellerEmail) {
             console.error("Validation Failed: Could not extract seller email.");
             return { statusCode: 500, body: JSON.stringify({ message: 'Failed to retrieve seller email.' }) };
@@ -237,8 +232,8 @@ exports.handler = async (event) => {
             from: fromAddress,
             to: sellerData.sellerEmail,
             subject: `Secure Payment Link for Auction ${sellerData.auctionDetails || auctionCode}`,
-            text: `Hello ${sellerData.sellerName || 'Seller'}, \n\nPlease use the following secure link to submit your payment information for auction ${sellerData.auctionDetails || auctionCode}:\n\n${process.env.URL || 'http://localhost:8888'}${paymentFormUrl}\n\nAmount Due: $${sellerData.amountDue ? sellerData.amountDue.toFixed(2) : 'N/A'}\n\nThis link is valid for 24 hours. If you have any questions, please contact McLemore Auction Company.\n\nThank you.`,
-            html: `<p>Hello ${sellerData.sellerName || 'Seller'},</p><p>Please use the following secure link to submit your payment information for auction <strong>${sellerData.auctionDetails || auctionCode}</strong>:</p><p><a href="${process.env.URL || 'http://localhost:8888'}${paymentFormUrl}">Click Here to Submit Payment Information</a></p><p>Amount Due: <strong>$${sellerData.amountDue ? sellerData.amountDue.toFixed(2) : 'N/A'}</strong></p><p>This link is valid for 24 hours. If you have any questions, please contact McLemore Auction Company.</p><p>Thank you.</p>`
+            text: `Hello ${sellerData.sellerName || 'Seller'}, \n\nPlease use the following secure link to submit your payment information for auction ${sellerData.auctionDetails || auctionCode}:\n\n${process.env.URL || 'http://localhost:8888'}${paymentFormUrl}\n\nThis link is valid for 24 hours. If you have any questions, please contact McLemore Auction Company.\n\nThank you.`,
+            html: `<p>Hello ${sellerData.sellerName || 'Seller'},</p><p>Please use the following secure link to submit your payment information for auction <strong>${sellerData.auctionDetails || auctionCode}</strong>:</p><p><a href="${process.env.URL || 'http://localhost:8888'}${paymentFormUrl}">Click Here to Submit Payment Information</a></p><p>This link is valid for 24 hours. If you have any questions, please contact McLemore Auction Company.</p><p>Thank you.</p>`
         };
 
         console.log(`Sending payment link email with JWT token to: ${sellerData.sellerEmail}`);

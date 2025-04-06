@@ -52,7 +52,6 @@ exports.handler = async (event) => {
             body: JSON.stringify({
                  sellerName: sellerData.sellerName,
                  auctionDetails: sellerData.auctionDetails,
-                 amountDue: sellerData.amountDue,
                  statementDate: sellerData.statementDate // Return statement date
             })
         };
